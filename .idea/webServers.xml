@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="50910588-e9a5-4e33-9886-a0dcabc6a721" name="ARS_CRML3">
+        <fileTransfer rootFolder="/home/ofir/code/ARS" accessType="SFTP" host="132.69.32.123" port="22" sshConfigId="235dab9e-786e-425d-9708-2af9bcb6cb09" sshConfig="ofir@132.69.32.123:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

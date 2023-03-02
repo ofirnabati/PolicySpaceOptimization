@@ -1,0 +1,508 @@
+"""Thompson Sampling with linear posterior over a learnt deep representation."""
+
+import ipdb
+import numpy as np
+import torch
+from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.utils.data import Dataset, DataLoader
+from neural_bandit_model import NeuralBanditModel
+
+class NeuralLinearPosteriorSampling:
+  """Full Bayesian linear regression on the last layer of a deep neural net."""
+
+  def __init__(self, storage,  device, hparams):
+
+    self.hparams = hparams
+    self.storage = storage
+    # self.latent_dim = self.hparams.context_dim
+    self.latent_dim = self.hparams.layers_size[-1]
+    self.param_dim=self.latent_dim
+    self.context_dim = self.hparams.context_dim
+    # Gaussian prior for each beta_i
+    self._lambda_prior = self.hparams.lambda_prior
+    self.device = device
+    self.fragments = self.hparams.fragments
+    self.horizon = hparams.horizon
+
+
+    self.mu = [torch.zeros(self.param_dim, device=device) for _ in range(self.fragments)]
+    self.f  = [torch.zeros(self.param_dim, device=device) for _ in range(self.fragments)]
+    self.yy = [0 for _ in range(self.fragments)]
+
+    self.cov = [(1.0 / self.lambda_prior) * torch.eye(self.param_dim, device=device) for _ in range(self.fragments)]
+
+    self.precision = [self.lambda_prior * torch.eye(self.param_dim, device=device) for _ in range(self.fragments)]
+
+    # Inverse Gamma prior for each sigma2_i
+    self._a0 = self.hparams.a0
+    self._b0 = self.hparams.b0
+
+    self.a = [self._a0 for _ in range(self.fragments)]
+    self.b = [self._b0 for _ in range(self.fragments)]
+
+    # Regression and NN Update Frequency
+    self.update_freq_nn = hparams.training_freq_network
+
+    self.t = 0
+    self.training_steps = 0
+
+    self.data_h = storage
+    self.model = NeuralBanditModel(hparams).to(self.device)
+
+    self.target_model = NeuralBanditModel(hparams).to(self.device)
+    self.target_model.load_state_dict(self.model.state_dict())
+    for param in self.target_model.parameters():
+        param.requires_grad = False
+    self.target_model.eval()
+
+    self.method = hparams.method
+    self.batch_data_number = 100
+
+    self.ucb = 0
+
+    #Model learning
+    # self.loss_fn = torch.nn.MSELoss()
+    self.loss_fn = torch.nn.L1Loss()
+    self.lr = hparams.initial_lr
+    self.batch_size = hparams.batch_size
+    self.training_iter = hparams.training_iter
+    self.device = device
+    self.lr_decay_rate = hparams.lr_decay_rate
+    self.lr_step_size = hparams.lr_step_size
+    self.max_grad_norm = hparams.max_grad_norm
+    self.optimizer_name = hparams.optimizer
+    self.gamma = hparams.discount
+    self.gae_lambda = hparams.gae_lambda
+    self.target_model_update = hparams.target_model_update
+    self.soft_target_tau = 1e-1
+    self.num_unroll_steps = hparams.num_unroll_steps
+    self.stacked_observations = 1
+
+
+
+    if self.optimizer_name == 'Adam':
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+    elif self.optimizer_name == 'RMSprop':
+        self.optimizer = torch.optim.RMSprop(self.model.parameters(), lr=self.lr)
+    else:
+        raise ValueError('optimizer name is unkown')
+    self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=self.lr_step_size, gamma=self.lr_decay_rate)
+
+
+  def add_bandit_fragment(self):
+      self.mu.append(torch.zeros(self.param_dim, device=self.device))
+      self.f.append(torch.zeros(self.param_dim, device=self.device))
+      self.yy.append(0)
+
+      self.cov.append((1.0 / self.lambda_prior) * torch.eye(self.param_dim, device=self.device))
+      self.precision.append(self.lambda_prior * torch.eye(self.param_dim, device=self.device))
+
+      self.a.append(self._a0)
+      self.b.append(self._b0)
+
+
+  def soft_update_from_to(self, source, target):
+      for target_param, param in zip(target.parameters(), source.parameters()):
+          target_param.data.copy_(
+              target_param.data * (1.0 - self.soft_target_tau) + param.data * self.soft_target_tau
+          )
+
+
+  def action(self, decison_set, obs, fragment):
+    """Samples beta's from posterior, and chooses best action accordingly."""
+
+    # Round robin until each action has been selected "initial_pulls" times
+    # if self.t < self.hparams.initial_pulls:
+    #   return  torch.randn(self.context_dim).to(self.device), torch.zeros([]), torch.zeros([])
+
+    self.model.eval()
+    set_size = decison_set.shape[0]
+    fragments = np.array([fragment for _ in range(set_size)])
+    with torch.no_grad():
+      # network_values, decison_set_latent = self.model(obs, decison_set)
+      decison_set_latent = self.model.encode(torch.tensor(fragments).to(self.device).long(), decison_set)
+      # decison_set_latent = self.model.encode(decison_set)
+      # encodeR = decison_set_latent - decison_set_latent[0]
+      # R = R.norm(dim=-1)
+
+    # Sample sigma2, and beta conditional on sigma2
+    # if self.b > 0:
+    #   sigma2_s = self.b * invgamma.rvs(self.a)
+    # else:
+    #   print('Warning: parameter b is negative!')
+    #   sigma2_s = 1e-4
+    sigma2_s = 10.0
+
+    if self.method == 'ucb':
+        d = self.latent_dim
+        self.ucb = torch.stack([torch.sqrt(torch.sum(0.1 * (decison_set_latent[i].outer(decison_set_latent[i])) * (sigma2_s * self.cov[fragment]))) for i in range(set_size)])
+        values = torch.stack([decison_set_latent[i].dot(self.mu[fragment]) + self.ucb[i] for i in range(set_size)])
+        if torch.isnan(values).sum() > 0:
+          print('cov is not PSD.. using default setting')
+          # values = torch.stack([network_values[i] + torch.sqrt(torch.sum(0.1 * (decison_set_latent[i].outer(decison_set_latent[i])) * (sigma2_s * torch.eye(d, device=self.device)))) for i in range(set_size)])
+          values = torch.stack([decison_set_latent[i].dot(self.mu[fragment]) + torch.sqrt(torch.sum(
+                    0.1 * (decison_set_latent[i].outer(decison_set_latent[i])) * (sigma2_s * torch.eye(d, device=self.device)))) for
+                          i in range(set_size)])
+    # elif self.method == 'es':
+    #     values = value_samples
+    #     values = network_values
+    elif self.method == 'ts':
+        try:
+          w_dist = MultivariateNormal(self.mu[fragment], sigma2_s * self.cov)
+          w = w_dist.sample()
+        except:
+          # Sampling could fail if covariance is not positive definite
+          d = self.param_dim
+          w_dist = MultivariateNormal(torch.zeros(d, device=self.device), torch.eye(d, device=self.device))
+          w = w_dist.sample()
+        # decison_set_latent = decison_set_latent[R <= self.decison_set_radius]
+        values =  torch.matmul(decison_set_latent,w)
+    else:
+      raise ValueError('method is unknown')
+
+    best_arm = decison_set[values.argmax()]
+    best_arm_index = values.argmax()
+    # best_value = values.max()
+
+    return best_arm,  best_arm_index, values, values.std()
+
+
+
+  def compute_returns_and_advantage(self, masks, rewards, values) -> None:
+      """
+      Post-processing step: compute the lambda-return (TD(lambda) estimate)
+      and GAE(lambda) advantage.
+
+      Uses Generalized Advantage Estimation (https://arxiv.org/abs/1506.02438)
+      to compute the advantage. To obtain Monte-Carlo advantage estimate (A(s) = R - V(S))
+      where R is the sum of discounted reward with value bootstrap
+      (because we don't always have full episode), set ``gae_lambda=1.0`` during initialization.
+
+      The TD(lambda) estimator has also two special cases:
+      - TD(1) is Monte-Carlo estimate (sum of discounted rewards)
+      - TD(0) is one-step estimate with bootstrapping (r_t + gamma * v(s_{t+1}))
+
+      For more information, see discussion in https://github.com/DLR-RM/stable-baselines3/pull/375.
+
+      :param last_values: state value estimation for the last step (one for each env)
+      :param dones: if the last step was a terminal step (one bool for each env).
+      """
+      values = values.clone()
+      masks = masks[:,:-1]
+      rewards = rewards[:,:-1]
+      advantages = torch.zeros_like(rewards)
+      traj_len = rewards.shape[-1]
+
+      last_gae_lam = 0
+      for step in reversed(range(traj_len)):
+          next_non_terminal = masks[:,step]
+          next_values = values[:,step + 1]
+          delta = rewards[:,step] + self.gamma * next_values * next_non_terminal - values[:,step]
+          last_gae_lam = delta + self.gamma * self.gae_lambda * next_non_terminal * last_gae_lam
+          advantages[:,step] = last_gae_lam
+      # TD(lambda) estimator, see Github PR #375 or "Telescoping in TD(lambda)"
+      # in David Silver Lecture 4: https://www.youtube.com/watch?v=PnHCvfgC_ZA
+      returns = advantages + values[:,:-1]
+      return returns
+
+
+  def update(self, exp, context, train=True):
+    """Updates the posterior using linear bayesian regression formula."""
+
+    # rewards = self.normalize_reward(rewards)
+    self.model.eval()
+    self.t += 1
+    context = context.astype(np.float)
+    self.storage.save_exp(exp, context)
+
+    fragment_max = len(exp.reward) // self.horizon
+    while fragment_max >= self.fragments:
+        self.add_bandit_fragment()
+        self.fragments += 1
+
+    # for i in range(len(exp.reward) // self.horizon + 1):
+    #     obs_idx = i * self.horizon
+        # value = np.sum(exp.reward[obs_idx:] * self.gamma ** np.arange(len(exp.reward[obs_idx:])))
+        # value = torch.tensor(value, device=self.device)
+        # self.yy[i] += value ** 2
+
+    # if self.t % self.target_model_update == 0:
+    #     self.soft_update_from_to(self.model, self.target_model)
+    #     # self.target_model.load_state_dict(self.model.state_dict())
+    #     self.target_model.eval()
+
+    if self.t % self.update_freq_nn == 0 and self.t >= self.batch_size and train:
+
+      data = self.storage.get_data()
+      # tic = time.time()
+      mean_loss = self.train(data)
+      # toc = time.time()
+      # print(f'Training time: {toc-tic}')
+      self.model.eval()
+      print(f'representaion has been updated with mean loss: {mean_loss}')
+      # Update the latent representation of every datapoint collected so far
+      for i in range(self.fragments):
+          obs_idx = i * self.horizon
+          contexts = []
+          values = []
+          first_states = []
+          for j in range(len(data)):
+              exp, context = data[j]
+              if len(exp.reward) < obs_idx + self.stacked_observations:
+                  continue
+              if self.hparams.use_target_network:
+                    range_idx = np.arange(obs_idx, min(obs_idx + self.num_unroll_steps - 1, len(exp.reward)))
+              else:
+                    range_idx = np.arange(obs_idx, len(exp.reward))
+
+              context = torch.tensor(context).float()
+              end_idx = range_idx[-1]
+              contexts.append(context)
+
+              v = np.sum(exp.reward[range_idx] * self.gamma ** np.arange(len(exp.reward[range_idx])))
+              if exp.mask[end_idx] == 1:
+                  with torch.no_grad():
+                    context2 = context.to(self.device).unsqueeze(0)
+                    target_hat, _ = self.target_model(torch.tensor(exp.obs[end_idx + 1],device=self.device).unsqueeze(0).float(), context2)
+                    v += self.gamma ** len(range_idx) * target_hat[0, 0].cpu().numpy()
+
+              values.append(v)
+              first_states.append(np.array(exp.obs[obs_idx:self.stacked_observations + obs_idx]))
+              # first_states.append(i)
+
+          if len(values) == 0:  # no data yet for this fragment
+              continue
+
+          contexts = torch.stack(contexts)
+          values = torch.tensor(values)
+          values = values.float()
+          # first_states = np.concatenate(first_states)
+          first_states = np.array(first_states)
+          first_states = torch.tensor(first_states)
+          # first_states = first_states.float()
+
+
+
+          self.precision[i] = self.lambda_prior * torch.eye(self.param_dim, device=self.device)
+          self.f[i] = torch.zeros(self.param_dim, device=self.device)
+          size_per_batch = len(data) // self.batch_data_number
+          for j in range(self.batch_data_number + 1):
+              contexts_batch = contexts[j * size_per_batch: (j + 1) * size_per_batch].to(self.device)
+              values_batch = values[j * size_per_batch: (j + 1) * size_per_batch].to(self.device)
+              first_states_batch = first_states[j * size_per_batch: (j + 1) * size_per_batch].to(self.device)
+              if len(contexts_batch) == 0:
+                  break
+              with torch.no_grad():
+                  new_z = self.model.encode(first_states_batch, contexts_batch)
+                  # new_z = self.model.encode(contexts_batch)
+
+              # The algorithm could be improved with sequential formulas (cheaper)
+              self.precision[i] += torch.matmul(new_z.T, new_z)
+              self.f[i] += torch.matmul(new_z.T, values_batch)
+
+          self.cov[i] = torch.linalg.inv(self.precision[i])
+          self.mu[i] = torch.matmul(self.cov[i], self.f[i])
+
+
+
+          # Inverse Gamma posterior update
+          self.a[i] += 0.5
+          # b_upd = 0.5 * (self.yy[i] - torch.matmul(self.mu[i], torch.matmul(self.precision[i], self.mu[i])))
+          # self.b[i] = self.b0 + b_upd
+          # print(self.calc_model_evidence())
+    else:
+        for i in range(len(exp.reward) // self.horizon + 1):
+
+            obs_idx = i * self.horizon
+            first_state = torch.tensor(np.array(exp.obs[obs_idx:obs_idx + self.stacked_observations]))
+
+            if self.hparams.use_target_network:
+                range_idx = np.arange(obs_idx, min(obs_idx + self.num_unroll_steps - 1, len(exp.reward)))
+            else:
+                range_idx = np.arange(obs_idx, len(exp.reward))
+
+            if len(first_state) == 0 or len(range_idx) == 0:
+                break
+
+            end_idx = range_idx[-1]
+            context1 = context.reshape((1, self.hparams.context_dim))
+            context1 = torch.tensor(context1)
+            context1 = context1.to(self.device).float()
+            # first_state = [torch.tensor(str_to_arr(o)) for o in exp.obs[:self.stacked_observations]]
+            # first_state = torch.stack(first_state,dim=0) # T x H x W x C
+            # first_state = atari_obs_preprocess(first_state.unsqueeze(0), True).float() / 255.0
+            first_state = first_state.float()
+            first_state = first_state.to(self.device)
+
+            # value = torch.tensor(exp.reward.sum(), device=self.device)
+            value = np.sum(exp.reward[range_idx] * self.gamma ** np.arange(len(exp.reward[range_idx])))
+            value = torch.tensor(value, device=self.device)
+            if exp.mask[end_idx] == 1:
+                with torch.no_grad():
+                    target_hat, _ = self.target_model(torch.tensor(exp.step[end_idx + 1], device=self.device).unsqueeze(0), context1)
+                    value += self.gamma ** len(range_idx) * target_hat[0, 0]
+            value = value
+
+            with torch.no_grad():
+              phi = self.model.encode(torch.tensor(i,device=self.device).unsqueeze(0), context1)
+              # phi = self.model.encode(context)
+            mean_loss = None
+            # Retrain the network on the original data (data_h)
+            self.precision[i] += torch.matmul(phi.T, phi)
+            self.f[i] += (phi.T * value)[:, 0]
+            self.cov[i] = torch.linalg.inv(self.precision[i])
+            self.mu[i] = torch.matmul(self.cov[i], self.f[i])
+
+            # Inverse Gamma posterior update
+            self.a[i] += 0.5
+            # b_upd = 0.5 * (self.yy[i] - torch.matmul(self.mu[i], torch.matmul(self.precision[i], self.mu[i])))
+            # self.b[i] = self.b0 + b_upd
+    return mean_loss
+
+  def train(self, data):
+        self.model.train()
+        dataset = NeuralLinearDataset(data, self.num_unroll_steps, self.stacked_observations, self.horizon)
+
+        smplr = torch.utils.data.RandomSampler(dataset,
+                                               replacement=True,
+                                               num_samples=self.training_iter * self.batch_size)
+        dataloader = DataLoader(dataset,
+                           batch_size= self.batch_size,
+                           sampler=smplr,
+                           shuffle=False,
+                           pin_memory=True,
+                           num_workers=8)
+                           # collate_fn=my_collate)
+
+
+        num_iter = 0
+        mean_loss = 0
+        for i, sample in enumerate(dataloader):
+            self.training_steps += 1
+            if self.training_steps % self.target_model_update == 0:
+                self.soft_update_from_to(self.model, self.target_model)
+                self.target_model.eval()
+            loss = self.train_step(sample)
+            num_iter += 1
+            mean_loss += loss
+            # print( f' Training step: {num_iter}/{self.training_iter}. loss={loss}',end="\r")
+
+        return mean_loss / num_iter
+
+  def train_step(self, sample):
+      context, obs, _, reward, mask, time_step = sample
+      # context = torch.stack(context)
+      B,T,C = obs.shape
+      # obs = atari_obs_preprocess(obs, True)
+      loss = 0
+
+      mask = mask.to(self.device)
+      dom = 0
+      for t in range(1):
+          flag_not_done = (mask[:, t] != -1)
+          if flag_not_done.sum() == 0:
+              break
+          indxes = torch.where(flag_not_done)[0]
+          mask1 = mask[indxes, t:-1]
+          reward1 = reward[indxes, t:-1]
+          obs1 = obs[indxes].to(self.device).float()
+          context1 = context.to(self.device).float()
+          time_step = time_step.to(self.device).int()
+
+
+          # context = context.unsqueeze(1).to(self.device)
+          # context = torch.tile(context, [1,T,1])
+
+          value_hat, _ = self.model((time_step[:,t] // self.horizon).long(), context1)
+          # context_hat, _ = self.model(obs, context)
+          gamma_arr = torch.tensor(np.array([self.gamma ** i for i in range(reward1.shape[-1])]))
+          reward1_gamma = reward1 * gamma_arr.unsqueeze(0)
+
+          with torch.no_grad():
+              target_value = reward1_gamma.sum(-1)
+              target_value = target_value.to(self.device)
+              target_value = target_value.float()
+              target_hat,_ = self.target_model((time_step[:,-1] // self.horizon).long(), context1)
+              target_value += self.gamma ** reward1.shape[-1] * target_hat[:,0] * mask1[:,-1]
+
+
+          loss += self.loss_fn(value_hat[:,0], target_value)  # + self.loss_fn(context,z_hat)
+          dom += 1
+      loss = loss / dom
+      total_loss = loss.item()
+      self.optimizer.zero_grad()
+      loss.backward()
+      # torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+      self.optimizer.step()
+      self.scheduler.step()
+
+      return total_loss
+
+  @property
+  def a0(self):
+    return self._a0
+
+  @property
+  def b0(self):
+    return self._b0
+
+  @property
+  def lambda_prior(self):
+    return self._lambda_prior
+
+
+class NeuralLinearDataset(Dataset):
+
+  def __init__(self, data, num_unroll, stacked_observations, horizon):
+    self.data = data
+    self.num_unroll = num_unroll
+    self.stacked_observations = stacked_observations
+    self.horizon = horizon
+
+  def __len__(self):
+    return len(self.data)
+
+  def __getitem__(self, item):
+    exp = self.data[item][0]
+    traj_len = exp.reward.shape[0]
+    frag_num = traj_len // self.horizon
+    if traj_len % self.horizon > 0:
+        frag_num += 1
+    id = np.random.randint(frag_num)
+    t = id * self.horizon
+    policy_vector =  self.data[item][1]
+    policy_vector = torch.tensor(policy_vector).float()
+    # t = 0
+    # obss = [torch.tensor(str_to_arr(o)) for o in exp.obs[t:t+self.num_unroll+self.stacked_observations-1]]
+    obss = [torch.tensor(o) for o in exp.obs[t:t+self.num_unroll+self.stacked_observations-1]]
+    obss = torch.stack(obss,dim=0) # T x H x W x C
+    actions = exp.action[t:t+self.num_unroll]
+    rewards = exp.reward[t:t+self.num_unroll]
+    step = exp.step[t:t+self.num_unroll]
+    # rewards = exp.reward
+    masks = exp.mask[t:t+self.num_unroll]
+    actions, rewards, masks, step = torch.tensor(actions).float(), torch.tensor(rewards).float(), torch.tensor(masks).float(), torch.tensor(step).float()
+    if t >= traj_len - self.num_unroll:
+        obss_pad = torch.zeros([self.num_unroll - traj_len + t] + list(obss.shape[1:]))
+        rewards_pad = torch.zeros([self.num_unroll - traj_len + t])
+        actions_pad = torch.zeros([self.num_unroll - traj_len + t] + list(actions.shape[1:]))
+        masks_pad = torch.zeros([self.num_unroll - traj_len + t])
+        step_pad = torch.zeros([self.num_unroll - traj_len + t])
+        obss = torch.cat([obss, obss_pad],dim=0)
+        rewards = torch.cat([rewards, rewards_pad], dim=0)
+        actions = torch.cat([actions, actions_pad], dim=0)
+        masks = torch.cat([masks, masks_pad], dim=0)
+        step = torch.cat([step, step_pad], dim=0)
+
+    obss = obss.float() #/ 255.0 #uint8 --> float32
+
+    return policy_vector, obss, actions, rewards, masks, step
+
+
+def my_collate(batch):
+  policy_vec = [item[0] for item in batch]
+  obs = torch.stack([item[1] for item in batch])
+  action = torch.stack([item[2] for item in batch])
+  reward = torch.stack([item[3] for item in batch])
+  mask = torch.stack([item[4] for item in batch])
+  return [policy_vec, obs, action, reward, mask]
