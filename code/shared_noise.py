@@ -3,6 +3,7 @@
 
 import ray
 import numpy as np
+import torch
 
 @ray.remote
 def create_shared_noise():
@@ -40,4 +41,50 @@ class SharedNoiseTable(object):
     def get_deltas(self,dim, number):
         idxes = self.sample_indexes(dim, number)
         noise = np.stack([self.get(i, dim) for i in idxes])
+        return idxes, noise
+
+
+
+class SharedNoiseTableSet(object):
+    def __init__(self, noise, weights, seed = 11):
+
+        self.rg = np.random.RandomState(seed)
+        self.noise = noise
+        self.W , self.bias = weights
+        self.dim = 0
+        for w in self.W:
+            self.dim += torch.prod(w.shape)
+        for b in self.bias:
+            self.dim += torch.prod(b.shape)
+
+        assert self.noise.dtype == np.float64
+
+    def get(self, i):
+        idx = i
+        W_noise = []
+        bias_noise = []
+        for w in self.W:
+            dim = torch.prod(w.shape)
+            W_noise.append(self.noise[idx:dim].reshape(*w.shape))
+            idx += dim
+        for b in self.bias:
+            dim = torch.prod(b.shape)
+            bias_noise.append(self.noise[idx:dim].reshape(*b.shape))
+            idx += dim
+
+        return [W_noise, bias_noise]
+
+    def sample_index(self):
+        return self.rg.randint(0, len(self.noise) - self.dim + 1)
+
+    def sample_indexes(self, number):
+        return self.rg.randint(0, len(self.noise) - self.dim + 1, number)
+
+    def get_delta(self):
+        idx = self.sample_index()
+        return idx, self.get(idx)
+
+    def get_deltas(self, number):
+        idxes = self.sample_indexes(number)
+        noise = [self.get(i) for i in idxes]
         return idxes, noise

@@ -20,7 +20,7 @@ import utils as utils
 import optimizers as optimizers
 from policies import *
 
-from shared_noise import SharedNoiseTable, create_shared_noise
+from shared_noise import SharedNoiseTableSet, create_shared_noise
 from neural_linear_gae_vae import NeuralLinearPosteriorSampling
 from gym.envs.registration import register
 from half_cheetah_sparse import SparseHalfCheetahDirEnv
@@ -94,7 +94,7 @@ class Worker(object):
         # each worker gets access to the shared noise table
         # with independent random streams for sampling
         # from the shared noise table.
-        self.deltas = SharedNoiseTable(deltas, env_seed + 7)
+
         self.policy_params = policy_params
 
         if policy_params['type'] == 'linear':
@@ -107,7 +107,7 @@ class Worker(object):
                                                device='cpu:0')
         else:
             raise NotImplementedError
-            
+        self.deltas = SharedNoiseTableSet(deltas,  self.policy.get_weights(), env_seed + 7)
         self.delta_std = delta_std
         self.rollout_length = rollout_length
 
@@ -196,19 +196,26 @@ class Worker(object):
             else:
                 idx, delta = self.deltas.get_delta(w_policy.size)
              
-                delta = (self.delta_std * delta).reshape(w_policy.shape)
+                # delta = (self.delta_std * delta).reshape(w_policy.shape)
                 deltas_idx.append(idx)
 
                 # set to true so that state statistics are updated 
                 self.policy.update_filter = True
 
                 # compute reward and number of timesteps used for positive perturbation rollout
-                self.policy.update_weights(w_policy + delta)
+                W,bias = w_policy
+                W_noise, bias_noise = delta
+                noisy_weights = [w + W_noise[k] * self.delta_std for k,w in enumerate(W)]
+                noisy_bias = [b + bias_noise[k] * self.delta_std for k,b in enumerate(bias)]
+
+                self.policy.update_weights([noisy_weights, noisy_bias])
                 # self.policy.update_weights(w_policy)
                 pos_reward, pos_steps, pos_obss, pos_actions, pos_rewards, pos_masks, pos_step_id  = self.rollout(shift = shift)
 
                 # compute reward and number of timesteps used for negative pertubation rollout
-                self.policy.update_weights(w_policy - delta)
+                noisy_weights = [w - W_noise[k] * self.delta_std for k,w in enumerate(W)]
+                noisy_bias = [b - bias_noise[k] * self.delta_std for k,b in enumerate(bias)]
+                self.policy.update_weights([noisy_weights, noisy_bias])
                 # self.policy.update_weights(w_policy)
                 neg_reward, neg_steps, neg_obss, neg_actions, neg_rewards, neg_masks, neg_step_id  = self.rollout(shift = shift)
                 steps += pos_steps + neg_steps
@@ -310,7 +317,7 @@ class ARSLearner(object):
         # create shared table for storing noise
         print("Creating deltas table.")
         deltas_id = create_shared_noise.remote()
-        self.deltas = SharedNoiseTable(ray.get(deltas_id), seed = seed + 3)
+
         print('Created deltas table.')
 
         # initialize workers with different random seeds
@@ -335,6 +342,7 @@ class ARSLearner(object):
             raise NotImplementedError
 
         self.w_policy = self.policy.get_weights()
+        self.deltas = SharedNoiseTableSet(ray.get(deltas_id), self.w_policy, seed=seed + 3)
         self.policy_history_set = [self.w_policy for _ in range(params['policy_history_set_size'])]
         # initialize optimization algorithm
         self.optimizer = optimizers.SGD(self.w_policy, self.step_size)        
@@ -386,8 +394,15 @@ class ARSLearner(object):
                 # self.timesteps += result["steps"]
                 rollout_len += result["steps"]
                 for j in range(num_rollouts):
-                    delta = self.deltas.get(result['deltas_idx'][j], self.w_policy.size)
-                    delta = self.delta_std * delta
+                    delta = self.deltas.get(result['deltas_idx'][j])
+                    W, bias = self.w_policy
+                    W_noise, bias_noise = delta
+                    noisy_weights_plus = [w + W_noise[k] * self.delta_std for k, w in enumerate(W)]
+                    noisy_bias_plus = [b + bias_noise[k] * self.delta_std for k, b in enumerate(bias)]
+                    noisy_weights_neg = [w - W_noise[k] * self.delta_std for k, w in enumerate(W)]
+                    noisy_bias_neg = [b - bias_noise[k] * self.delta_std for k, b in enumerate(bias)]
+
+
                     exp_pos = utils.DictListObject()
                     exp_pos.obs    = result['obss_arr'][j][0]
                     exp_pos.action = result['actions_arr'][j][0]
@@ -396,9 +411,9 @@ class ARSLearner(object):
                     exp_pos.step   = result['step_id_arr'][j][0]
                     if self.params['filter'] == 'MeanStdFilter':
                         w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                        update_par = np.concatenate([self.w_policy.reshape(-1) + delta, w[1], w[2]])
+                        update_par = np.concatenate([[noisy_weights_plus, noisy_bias_plus] , w[1], w[2]])
                     else:
-                        update_par = self.w_policy.reshape(-1) + delta
+                        update_par = [noisy_weights_plus, noisy_bias_plus]
                     loss_pos = self.bandit_algo.update(exp_pos, update_par)
                     # loss_pos = self.bandit_algo.update(exp_pos, self.w_policy.reshape(-1))
                     if loss_pos is not None:
@@ -413,9 +428,9 @@ class ARSLearner(object):
                     exp_neg.step   = result['step_id_arr'][j][1]
                     if self.params['filter'] == 'MeanStdFilter':
                         w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                        update_par = np.concatenate([self.w_policy.reshape(-1) - delta, w[1], w[2]])
+                        update_par = np.concatenate([[noisy_weights_neg, noisy_bias_neg], w[1], w[2]])
                     else:
-                        update_par = self.w_policy.reshape(-1) - delta
+                        update_par = [noisy_weights_neg, noisy_bias_neg]
                     loss_neg = self.bandit_algo.update(exp_neg, update_par)
                     # loss_neg = self.bandit_algo.update(exp_neg, self.w_policy.reshape(-1))
                     if loss_neg is not None:
@@ -430,8 +445,13 @@ class ARSLearner(object):
 
                 # self.timesteps += result["steps"]
                 rollout_len += result["steps"]
-                delta = self.deltas.get(result['deltas_idx'][0], self.w_policy.size)
-                delta = self.delta_std * delta
+                delta = self.deltas.get(result['deltas_idx'][0])
+                W, bias = self.w_policy
+                W_noise, bias_noise = delta
+                noisy_weights_plus = [w + W_noise[k] * self.delta_std for k, w in enumerate(W)]
+                noisy_bias_plus = [b + bias_noise[k] * self.delta_std for k, b in enumerate(bias)]
+                noisy_weights_neg = [w - W_noise[k] * self.delta_std for k, w in enumerate(W)]
+                noisy_bias_neg = [b - bias_noise[k] * self.delta_std for k, b in enumerate(bias)]
                 exp_pos = utils.DictListObject()
                 exp_pos.obs = result['obss_arr'][0][0]
                 exp_pos.action = result['actions_arr'][0][0]
@@ -440,10 +460,9 @@ class ARSLearner(object):
                 exp_pos.step = result['step_id_arr'][0][0]
                 if self.params['filter'] == 'MeanStdFilter':
                     w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                    update_par = np.concatenate([self.w_policy.reshape(-1) + delta, w[1], w[2]])
+                    update_par = np.concatenate([[noisy_weights_plus, noisy_bias_plus] , w[1], w[2]])
                 else:
-                    update_par = self.w_policy.reshape(-1) + delta
-                    update_par = self.policy.vec2set(update_par)
+                    update_par = [noisy_weights_plus, noisy_bias_plus]
                 loss_pos = self.bandit_algo.update(exp_pos, update_par)
                 # loss_pos = self.bandit_algo.update(exp_pos, self.w_policy.reshape(-1))
                 if loss_pos is not None:
@@ -457,10 +476,9 @@ class ARSLearner(object):
                 exp_neg.step = result['step_id_arr'][0][1]
                 if self.params['filter'] == 'MeanStdFilter':
                     w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                    update_par = np.concatenate([self.w_policy.reshape(-1) - delta, w[1], w[2]])
+                    update_par = np.concatenate([[noisy_weights_neg, noisy_bias_neg] , w[1], w[2]])
                 else:
-                    update_par = self.w_policy.reshape(-1) - delta
-                    update_par = self.policy.vec2set(update_par)
+                    update_par = [noisy_weights_neg, noisy_bias_neg]
                 loss_neg = self.bandit_algo.update(exp_neg, update_par)
                 # loss_neg = self.bandit_algo.update(exp_neg, self.w_policy.reshape(-1))
                 if loss_neg is not None:
@@ -501,11 +519,11 @@ class ARSLearner(object):
 
         t1 = time.time()
         # aggregate rollouts to form g_hat, the gradient used to compute SGD step
-        g_hat, count = utils.batched_weighted_sum(rollout_rewards[:, 0] - rollout_rewards[:, 1],
-                                                  (self.deltas.get(idx, self.w_policy.size)
-                                                   for idx in deltas_idx),
-                                                  batch_size=500)
-        g_hat /= deltas_idx.size
+        g_hat  = utils.batched_weighted_sum(rollout_rewards[:, 0] - rollout_rewards[:, 1],
+                                                  (self.deltas.get(idx)
+                                                   for idx in deltas_idx)),
+                                                  # batch_size=500)
+        # g_hat /= deltas_idx.size
         # self.w_policy -= self.optimizer._compute_step(g_hat).reshape(self.w_policy.shape)
 
         ## Bandits from here
@@ -515,16 +533,28 @@ class ARSLearner(object):
         max_policy = self.policy_history_set[0]
         with torch.no_grad():
                 for _ in range(args.average_first_state):
-                        idxes, deltas = self.deltas.get_deltas(self.w_policy.size, self.num_bandit_deltas * len(self.policy_history_set))
-                        deltas = (self.delta_bandit_std * deltas).reshape([len(idxes)] + list(self.w_policy.shape))
+                        idxes, deltas = self.deltas.get_deltas(self.num_bandit_deltas * len(self.policy_history_set))
+                        decison_set_pos, decison_set_neg = [], []
+                        for i,p in enumerate(self.policy_history_set):
+                            # deltas = (self.delta_bandit_std * deltas).reshape([len(idxes)] + list(self.w_policy.shape))
+                            # decison_set_pos = np.concatenate([p + deltas[i*self.num_bandit_deltas : (i+1)*self.num_bandit_deltas] for i,p in enumerate(self.policy_history_set)])
+                            # decison_set_pos = torch.tensor(decison_set_pos.reshape(len(idxes), -1))
+                            # decison_set_pos = self.policy.vec2set(decison_set_pos)
+                            W, bias  = p
+                            for delta in deltas[i*self.num_bandit_deltas : (i+1) * self.num_bandit_deltas]:
+                                W_noise, bias_noise = delta
+                                noisy_weights_plus = [w + W_noise[k] * self.delta_std for k, w in enumerate(W)]
+                                noisy_bias_plus = [b + bias_noise[k] * self.delta_std for k, b in enumerate(bias)]
+                                decison_set_pos.append([noisy_weights_plus, noisy_bias_plus])
+                                if self.soft_bandit_update:
+                                    noisy_weights_neg = [w - W_noise[k] * self.delta_std for k, w in enumerate(W)]
+                                    noisy_bias_neg = [b - bias_noise[k] * self.delta_std for k, b in enumerate(bias)]
+                                    decison_set_neg.append([noisy_weights_neg, noisy_bias_neg])
 
-                        decison_set_pos = np.concatenate([p + deltas[i*self.num_bandit_deltas : (i+1)*self.num_bandit_deltas] for i,p in enumerate(self.policy_history_set)])
-                        decison_set_pos = torch.tensor(decison_set_pos.reshape(len(idxes), -1))
-                        decison_set_pos = self.policy.vec2set(decison_set_pos)
-                        if self.soft_bandit_update:
-                            decison_set_neg = np.concatenate([p - deltas[i*self.num_bandit_deltas : (i+1)*self.num_bandit_deltas] for i,p in enumerate(self.policy_history_set)])
-                            decison_set_neg = torch.tensor(decison_set_neg.reshape(len(idxes), -1))
-                            decison_set_neg = self.policy.vec2set(decison_set_neg)
+                        # if self.soft_bandit_update:
+                        #     decison_set_neg = np.concatenate([p - deltas[i*self.num_bandit_deltas : (i+1)*self.num_bandit_deltas] for i,p in enumerate(self.policy_history_set)])
+                        #     decison_set_neg = torch.tensor(decison_set_neg.reshape(len(idxes), -1))
+                        #     decison_set_neg = self.policy.vec2set(decison_set_neg)
 
                         if self.params['filter'] == 'MeanStdFilter':
                             w = ray.get(self.workers[0].get_weights_plus_stats.remote())
@@ -534,9 +564,9 @@ class ARSLearner(object):
                             if self.soft_bandit_update:
                                 decison_set_neg = torch.cat([decison_set_neg, w], dim=-1)
 
-                        decison_set_pos = decison_set_pos.float().to(self.device)
-                        if self.soft_bandit_update:
-                            decison_set_neg = decison_set_neg.float().to(self.device)
+                        # decison_set_pos = decison_set_pos.float().to(self.device)
+                        # if self.soft_bandit_update:
+                        #     decison_set_neg = decison_set_neg.float().to(self.device)
 
                         # Vpos, Vneg, emprical_return = 0,0,0
                         curr_step_size = 0
@@ -552,7 +582,7 @@ class ARSLearner(object):
                             ref_point = np.concatenate([self.w_policy.reshape(-1), w[1], w[2]])
                             ref_point = torch.tensor(ref_point, device=self.device, dtype=torch.float)
                         else:
-                           ref_point =  torch.tensor(self.w_policy.reshape(-1), device=self.device, dtype=torch.float)
+                           ref_point =  self.w_policy #torch.tensor(self.w_policy.reshape(-1), device=self.device, dtype=torch.float)
 
                         p1, best_idx_plus, values_plus, _ = self.bandit_algo.action(decison_set_pos, first_state, fragment=frag_idx, ref_point = ref_point)
                         # p1, best_idx, values_plus, _ = self.bandit_algo.action(decison_set_pos, first_state, fragment=frag_idx)
@@ -610,22 +640,39 @@ class ARSLearner(object):
                             else:
                                 bandit_rollout_rewards = V / V_std
 
-                            g_hat_bandits, count = utils.batched_weighted_sum(bandit_rollout_rewards[:,0] - bandit_rollout_rewards[:,1],
-                                                                      (self.deltas.get(idx, self.w_policy.size)
+                            g_hat_bandits = utils.batched_weighted_sum(bandit_rollout_rewards[:,0] - bandit_rollout_rewards[:,1],
+                                                                      (self.deltas.get(idx)
                                                                        for idx in idxes),
                                                                       batch_size = 500)
-                            g_hat_bandits /= idxes.size
+                            # g_hat_bandits /= idxes.size
                             # g_hat_bandits = np.clip(g_hat_bandits,-1.0,1.0)
-                            G += g_hat_bandits
+                            if G == 0:
+                                G = g_hat_bandits
+                            else:
+                                W,bias = G
+                                W_hat, bias_hat = g_hat_bandits
+                                for idx, w in enumerate(W):
+                                    W[idx] += W_hat[idx]
+                                for idx, b in enumerate(bias):
+                                    bias[idx] -= bias_hat[idx]
+                                G = [W, bias]
                             # self.w_policy -= self.optimizer._compute_step(g_hat_bandits).reshape(self.w_policy.shape)
                             curr_step_size += (bandit_rollout_rewards[:,0] - bandit_rollout_rewards[:,1]).mean().item()
 
         if not self.soft_bandit_update:
-            self.w_policy = decison_set_pos[best_idx_plus].cpu().numpy().reshape(self.w_policy.shape)
+            self.w_policy = decison_set_pos[best_idx_plus]#.cpu().numpy().reshape(self.w_policy.shape)
         else:
-            G /= args.average_first_state
-            overall_g = (1 - self.explore_coeff) * g_hat + self.explore_coeff * G
-            self.w_policy -= self.optimizer._compute_step(overall_g).reshape(self.w_policy.shape)
+            # G /= args.average_first_state
+            W,bias = self.w_policy
+            W_g, bias_g = g_hat
+            W_G, bias_G = G
+            for idx, w in enumerate(W):
+                overall_g = (1 - self.explore_coeff) * W_g[idx] + self.explore_coeff * W_G[idx] / args.average_first_state
+                W[idx] -= self.optimizer._compute_step(overall_g)
+            for idx, b in enumerate(bias):
+                overall_g = (1 - self.explore_coeff) * bias_g[idx] + self.explore_coeff * bias_G[idx] / args.average_first_state
+                bias[idx] -= self.optimizer._compute_step(overall_g)
+            self.w_policy = [W,bias]
         self.policy_history_set.pop(0)
         self.policy_history_set.append(self.w_policy)
         # self.policy_history_set.pop(0)

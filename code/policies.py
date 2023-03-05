@@ -85,63 +85,61 @@ class BasicModel(nn.Module):
             if module.bias is not None:
                 module.bias.data.fill_(0.0)
 
+    # def get_weights(self):
+    #     z = []
+    #     for param in self.parameters():
+    #         if param.requires_grad:
+    #             z.append(param.data.reshape(-1))
+    #     return torch.cat(z).cpu().numpy()
+    #
+    # def update_weights(self, z):
+    #     z = torch.tensor(z).float().to(self.device)
+    #     idx = 0
+    #     for param in self.parameters():
+    #         if param.requires_grad:
+    #             dim = np.prod(param.shape)
+    #             param.data = z[idx:idx + dim].reshape(param.shape)
+    #             idx += dim
+    #     return
+
+    # def vec2set(self, z):
+    #     z_dim = z.shape
+    #     W = []
+    #     b = []
+    #     idx = 0
+    #     D = self.state_dict()
+    #     w_id, b_id = 0, 0
+    #     for w, v in D.items():
+    #         if "weight" in w:
+    #             dim = np.prod(v.shape)
+    #             if len(z_dim) > 1:
+    #             W[w_id] = z[:,idx:idx + dim].reshape(-1, *(v.shape))
+    #             w_id += 1
+    #         if "bias" in w:
+    #             dim = np.prod(v.shape)
+    #             D[w] = b[b_id]
+    #             b_id += 1
+
+
     def get_weights(self):
-        z = []
-        for param in self.parameters():
-            if param.requires_grad:
-                z.append(param.data.reshape(-1))
-        return torch.cat(z).cpu().numpy()
+        weights = tuple(
+            [v.permute(1, 0) for w, v in self.state_dict().items() if "weight" in w]
+        )
+        biases = tuple([v for w, v in self.state_dict().items() if "bias" in w])
+        return [weights, biases]
 
     def update_weights(self, z):
-        z = torch.tensor(z).float().to(self.device)
-        idx = 0
-        for param in self.parameters():
-            if param.requires_grad:
-                dim = np.prod(param.shape)
-                param.data = z[idx:idx + dim].reshape(param.shape)
-                idx += dim
-        return
-
-    def vec2set(self, z):
-        z_dim = z.shape
-        W = []
-        b = []
-        idx = 0
-        for module in self.children():
-            if isinstance(module, (nn.Linear, nn.Conv2d)):
-                dim = np.prod(module.weight.shape)
-                if len(z_dim) > 1:
-                    W.append(z[:,idx:idx + dim].reshape(-1, *(module.weight.shape)))
-                else:
-                    W.append(z[idx:idx+dim].reshape(module.weight.shape))
-                idx += dim
-                if module.bias is not None:
-                    dim = np.prod(module.bias.shape)
-                    if len(z_dim) > 1:
-                        b.append(z[:,idx:idx + dim].reshape(-1, *(module.bias.shape)))
-                    else:
-                        b.append(z[idx:idx + dim].reshape(module.bias.shape))
-                    idx += dim
-        return [W, b]
-
-
-    def get_weights_set(self):
-        W = []; b = []
-        for module in self.children():
-            if isinstance(module, (nn.Linear, nn.Conv2d)):
-                W.append(module.weight.data.cpu().numpy())
-                if module.bias is not None:
-                    b.append(module.bias.data.cpu().numpy())
-
-        return [W, b]
-
-    def update_weights_set(self, z):
         W, b = z
-        for idx, module in enumerate(self.children()):
-            if isinstance(module, (nn.Linear, nn.Conv2d)):
-                module.weight.data = W[idx]
-                if module.bias is not None:
-                    module.bias.data = b[idx]
+        D = self.state_dict()
+        w_id, b_id = 0,0
+        for w, v in D.items():
+            if "weight" in w:
+                D[w] = W[w_id].permute(1,0)
+                w_id += 1
+            if "bias" in w:
+                D[w] = b[b_id]
+                b_id += 1
+        self.load_state_dict(D)
 
 
 
