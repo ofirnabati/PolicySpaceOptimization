@@ -61,7 +61,6 @@ class NeuralBanditModelVAEGaussian(nn.Module):
             reduction=hparams.reduction,
             n_fc_layers=hparams.n_fc_layers,
             set_layer=hparams.set_layer,
-            n_out_fc=hparams.n_out_fc,
             dropout_rate=hparams.do_rate,
             bn=hparams.add_bn)
 
