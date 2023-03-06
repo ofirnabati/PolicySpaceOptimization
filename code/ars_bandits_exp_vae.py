@@ -17,11 +17,13 @@ import gym
 import logz
 import ray
 import utils as utils
+from utils import str2bool
 import optimizers as optimizers
 from policies import *
 
 from shared_noise import SharedNoiseTableSet, create_shared_noise
-from neural_linear_gae_vae import NeuralLinearPosteriorSampling
+# from neural_linear_gae_vae import NeuralLinearPosteriorSampling
+from neural_linear_gae_dws import NeuralLinearPosteriorSampling
 from gym.envs.registration import register
 from half_cheetah_sparse import SparseHalfCheetahDirEnv
 from sparseMuJoCo.envs.mujoco.hopper_v1 import SparseHopperV1 as SparseHopper
@@ -845,11 +847,17 @@ def run_ars(args):
         w = policy.get_weights_plus_stats()
         context_dim = np.concatenate([w[0].reshape(-1), w[1], w[2]]).size
     else:
-        context_dim = policy.get_weights().size
+        # context_dim = policy.get_weights().size
+        W,bias = policy.get_weights()
+
+    weight_shapes = tuple(w.shape[:2] for w in W)
+    bias_shapes = tuple(b.shape[:1] for b in bias)
 
     # args.layers_size = [context_dim * 2, context_dim * 4]
-    args.context_dim = context_dim
-    print(context_dim)
+    # args.context_dim = context_dim
+    args.weight_shapes = weight_shapes
+    args.bias_shapes = bias_shapes
+    # print(context_dim)
     args.obs_dim = ob_dim
 
     wandb.init(project="PolicySpaceOptimization_new", entity="ofirnabati", config=args.__dict__)
@@ -923,7 +931,7 @@ if __name__ == '__main__':
     parser.add_argument("--gae-lambda", type=float, default=0.97,
                         help="lambda coefficient in GAE formula (default: 0.95, 1 means no gae)")
     parser.add_argument("--horizon", type=int, default=1024)
-    parser.add_argument("--use_target_network", type=bool, default=True)
+    parser.add_argument("--use_target_network", type=str2bool, default=True)
     parser.add_argument("--policy_history_set_size", type=int, default=1)
     parser.add_argument("--num_unroll_steps", type=int, default=64)
     parser.add_argument("--method", type=str, default='ts')
@@ -944,17 +952,29 @@ if __name__ == '__main__':
     parser.add_argument("--kld_coeff", type=float, default=0.1)
     parser.add_argument("--dec_coeff", type=float, default=0.1)
     parser.add_argument("--optimizer", type=str, default='Adam')
-    parser.add_argument("--state_based_value", type=bool, default=False)
-    parser.add_argument("--save_exp", type=bool, default=False)
-    parser.add_argument("--no_embedding", type=bool, default=False)
-    parser.add_argument("--discrete_dist", type=bool, default=False)
+    parser.add_argument("--state_based_value", type=str2bool, default=False)
+    parser.add_argument("--save_exp", type=str2bool, default=False)
+    parser.add_argument("--no_embedding", type=str2bool, default=False)
+    parser.add_argument("--discrete_dist", type=str2bool, default=False)
     parser.add_argument("--category_size", type=int, default=64)
     parser.add_argument("--class_size", type=int, default=64)
-    parser.add_argument("--soft_bandit_update", dest='soft_bandit_update', action='store_true')
-    parser.add_argument('--no-soft_bandit_update', dest='soft_bandit_update', action='store_false')
+    parser.add_argument("--soft_bandit_update", type=str2bool, default=False)
 
     # for ARS V1 use filter = 'NoFilter'
     parser.add_argument('--filter', type=str, default='MeanStdFilter')
+
+
+    #DWS
+    parser.add_argument("--dim_hidden", type=int, default=32)
+    parser.add_argument("--n_hidden", type=int, default=4)
+    parser.add_argument("--reduction", type=int, default=5000000)
+    parser.add_argument("--n_fc_layers", type=int, default=1)
+    parser.add_argument("--set_layer", type=str, default='sab')
+    parser.add_argument("--n_out_fc", type=int, default=1)
+    parser.add_argument("--do_rate", type=int, default=50)
+    parser.add_argument("--add_bn", type=str2bool, default=True)
+    parser.add_argument("--n-heads", type=int, default=8)
+
 
     # local_ip = socket.gethostbyname(socket.gethostname())
     # ray.init(_redis_address= local_ip + ':6379')

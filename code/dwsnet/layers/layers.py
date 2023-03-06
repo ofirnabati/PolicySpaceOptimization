@@ -337,25 +337,18 @@ class InvariantLayer(BaseLayer):
         )
         self.weight_shapes = weight_shapes
         self.bias_shapes = bias_shapes
+        a = 5 + \
+            6
         n_layers = len(weight_shapes) + len(bias_shapes)
+        self.latent_dim = in_features * (n_layers - 3) + in_features * weight_shapes[0][0] + in_features * weight_shapes[-1][-1] + in_features * bias_shapes[-1][-1]
+
         self.layer = self._get_mlp(
-            in_features=(
-                in_features * (n_layers - 3)
-                +
-                # in_features * d0 - first weight matrix
-                in_features * weight_shapes[0][0]
-                +
-                # in_features * dL - last weight matrix
-                in_features * weight_shapes[-1][-1]
-                +
-                # in_features * dL - last bias
-                in_features * bias_shapes[-1][-1]
-            ),
+            in_features=self.latent_dim,
             out_features=out_features,
             bias=bias,
         )
 
-    def forward(self, x: Tuple[Tuple[torch.tensor], Tuple[torch.tensor]]):
+    def extract_latent(self, x: Tuple[Tuple[torch.tensor], Tuple[torch.tensor]]):
         weights, biases = x
         # first and last matrices are special
         first_w, last_w = weights[0], weights[-1]
@@ -395,7 +388,14 @@ class InvariantLayer(BaseLayer):
         pooled_all = torch.cat(
             [pooled_weights, pooled_biases], dim=-1
         )  # (bs, (num layers - 3) * in_features + d0 * in_features + dL * in_features + dL * in_features)
-        return self.layer(pooled_all)
+        return pooled_all
+
+    def last_layer(self, x):
+        return self.layer(x)
+
+    def forward(self, x: Tuple[Tuple[torch.tensor], Tuple[torch.tensor]]):
+        latent = self.extract_latent(x)
+        return self.last_layer(latent), latent
 
 
 class NaiveInvariantLayer(BaseLayer):
