@@ -46,6 +46,7 @@ class NeuralBanditModelDWS(nn.Module):
         super(NeuralBanditModelDWS, self).__init__()
         self.state_based = hparams.state_based_value
         self.no_embedding = hparams.no_embedding
+        self.non_linear_func = nn.ReLU
         # self.non_linear_func = nn.ReLU
         if self.state_based:
             latent_dim = hparams.layers_size[0] // 2
