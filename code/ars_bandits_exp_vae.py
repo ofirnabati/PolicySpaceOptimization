@@ -521,10 +521,9 @@ class ARSLearner(object):
 
         t1 = time.time()
         # aggregate rollouts to form g_hat, the gradient used to compute SGD step
-        ipdb.set_trace()
         g_hat  = utils.batched_weighted_sum(rollout_rewards[:, 0] - rollout_rewards[:, 1],
-                                                  (self.deltas.get(idx)
-                                                   for idx in deltas_idx))
+                                                  [self.deltas.get(idx)
+                                                   for idx in deltas_idx])
                                                   # batch_size=500)
         # g_hat /= deltas_idx.size
         # self.w_policy -= self.optimizer._compute_step(g_hat).reshape(self.w_policy.shape)
@@ -644,9 +643,9 @@ class ARSLearner(object):
                                 bandit_rollout_rewards = V / V_std
 
                             g_hat_bandits = utils.batched_weighted_sum(bandit_rollout_rewards[:,0] - bandit_rollout_rewards[:,1],
-                                                                      (self.deltas.get(idx)
-                                                                       for idx in idxes),
-                                                                      batch_size = 500)
+                                                                      [self.deltas.get(idx)
+                                                                       for idx in idxes])
+                                                                      # batch_size = 500)
                             # g_hat_bandits /= idxes.size
                             # g_hat_bandits = np.clip(g_hat_bandits,-1.0,1.0)
                             if G == 0:
