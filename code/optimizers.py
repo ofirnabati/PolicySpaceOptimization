@@ -11,7 +11,7 @@ import numpy as np
 class Optimizer(object):
     def __init__(self, w_policy):
         self.w_policy = w_policy #.flatten()
-        self.dim = w_policy.size
+        # self.dim = w_policy.size
         self.t = 0
 
     def update(self, globalg):
