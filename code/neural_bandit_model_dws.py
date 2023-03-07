@@ -85,7 +85,7 @@ class NeuralBanditModelDWS(nn.Module):
         self.clf = InvariantLayer(
             weight_shapes=hparams.weight_shapes,
             bias_shapes=hparams.bias_shapes,
-            in_features=hparams.hidden_dim,
+            in_features=hparams.dim_hidden,
             out_features=1,
             reduction= hparams.reduction,
             n_fc_layers= hparams.n_out_fc,
