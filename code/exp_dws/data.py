@@ -7,8 +7,8 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Subset
 
-from experiments.utils import make_coordinates
-from nn.inr import INR
+from exp_dws.utils import make_coordinates
+from dwsnet.inr import INR
 
 
 class Batch(NamedTuple):
