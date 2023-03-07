@@ -196,7 +196,7 @@ class Worker(object):
                 step_id_arr.append(step_id)
 
             else:
-                idx, delta = self.deltas.get_delta(w_policy.size)
+                idx, delta = self.deltas.get_delta()
              
                 # delta = (self.delta_std * delta).reshape(w_policy.shape)
                 deltas_idx.append(idx)
