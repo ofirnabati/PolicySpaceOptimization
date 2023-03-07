@@ -577,7 +577,7 @@ class ARSLearner(object):
                         # for frag_idx in range(self.bandit_algo.fragments):
                         first_state, frag_idx = self.storage.sample_random_state_and_fragment(self.horizon, self.bandit_algo.fragments, self.num_deltas * 2)
                         first_state = torch.tensor(first_state, dtype=torch.float).to(device)
-                        first_state = torch.stack([first_state for _ in range(decison_set_pos.shape[0])])
+                        first_state = torch.stack([first_state for _ in range(len(decison_set_pos))])
                         first_state = first_state.float()
                         if self.params['filter'] == 'MeanStdFilter':
                             w = ray.get(self.workers[0].get_weights_plus_stats.remote())
