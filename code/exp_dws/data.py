@@ -19,7 +19,7 @@ class Batch(NamedTuple):
     # reward: torch.Tensor
     # mask: torch.Tensor
     # steps: torch.Tensor
-    ret: torch.Tenosr
+    ret: torch.Tensor
 
     def _assert_same_len(self):
         assert len(set([len(t) for t in self])) == 1
