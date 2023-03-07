@@ -1,4 +1,4 @@
-from nn.layers.layers import (
+from dwsnet.layers.layers import (
     BN,
     DownSampleDWSLayer,
     Dropout,
