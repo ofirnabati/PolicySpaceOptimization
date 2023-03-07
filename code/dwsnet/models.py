@@ -3,7 +3,7 @@ from typing import Tuple
 import torch
 from torch import nn
 
-from nn.layers import BN, DownSampleDWSLayer, Dropout, DWSLayer, InvariantLayer, ReLU
+from dwsnet.layers import BN, DownSampleDWSLayer, Dropout, DWSLayer, InvariantLayer, ReLU
 
 
 class MLPModel(nn.Module):
