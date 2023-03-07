@@ -397,7 +397,7 @@ class NeuralLinearPosteriorSampling:
           with torch.no_grad():
               # states = torch.tensor(np.array(exp.obs)).float()
               states =  exp.obs
-              context = torch.tensor(context).float()
+              # context = torch.tensor(context).float()
               # context1 =  torch.stack([context for _ in range(len(states))])
               # target_values, _ = self.target_model(states.to(self.device), context1.to(self.device))
               # target_values = target_values[:, 0].unsqueeze(0)
@@ -430,7 +430,11 @@ class NeuralLinearPosteriorSampling:
 
                   self.yy[i] += values[0] ** 2
                   # contexts =  context1[idx:idx+1].to(self.device)
-                  contexts = context.unsqueeze(0).to(self.device)
+                  # contexts = context.unsqueeze(0).to(self.device)
+                  weights, biases = context
+                  weights = tuple([w.unsqueeze(-1).unsqueeze(0).to(self.device) for w in weights])
+                  biases = tuple([b.unsqueeze(-1).unsqueeze(0).to(self.device) for b in biases])
+                  contexts= [weights, biases]
                   first_states = [] #states[idx:idx+1].float().to(self.device)
                   # values  =returns[idx:idx+1].to(self.device)
 
@@ -456,7 +460,12 @@ class NeuralLinearPosteriorSampling:
             step_idx = exp.step[:-1]
             # states = torch.tensor(np.array(exp.obs)).to(self.device).float()
             states = exp.obs
-            context = torch.tensor(context).float().unsqueeze(0).to(self.device)
+            weights, biases = context
+            weights = tuple([w.unsqueeze(-1).unsqueeze(0).to(self.device) for w in weights])
+            biases = tuple([b.unsqueeze(-1).unsqueeze(0).to(self.device) for b in biases])
+            contexts = [weights, biases]
+            # context = torch.tensor(context).float().unsqueeze(0).to(self.device)
+
             # contexts = torch.stack([context for _ in range(len(states))])
             # contexts = contexts.to(self.device)
             # target_values, _ = self.target_model(states, contexts)
@@ -481,8 +490,8 @@ class NeuralLinearPosteriorSampling:
                 i = 0
 
                 # returns = returns[idx:idx+1]
-                states = states#[idx:idx+1]
-                contexts = context#[idx:idx+1]
+                # states = states#[idx:idx+1]
+                # contexts = context#[idx:idx+1]
 
                 # if self.discrete_dist:
                 #     phi = self.model.encode(states, contexts)
