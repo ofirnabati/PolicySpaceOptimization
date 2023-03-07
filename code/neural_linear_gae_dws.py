@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.utils.data import Dataset, DataLoader
-from neural_bandit_model import NeuralBanditModelVAEGaussian, NeuralBanditModelVAEDiscrete
+from neural_bandit_model_dws import NeuralBanditModelDWS
 from exp_dws.data import ReprlDataset
 import torch.distributions as td
 from scipy.stats import invgamma
@@ -33,7 +33,7 @@ class NeuralLinearPosteriorSampling:
             self.latent_dim = self.hparams.layers_size[-1]
 
     self.param_dim=self.latent_dim
-    self.context_dim = self.hparams.context_dim
+
     # Gaussian prior for each beta_i
     self._lambda_prior = self.hparams.lambda_prior
     self.device = device
@@ -69,17 +69,13 @@ class NeuralLinearPosteriorSampling:
     self.training_steps = 0
 
     self.data_h = storage
-    if self.discrete_dist:
-        self.model = NeuralBanditModelVAEDiscrete(hparams).to(self.device)
-        self.target_model = NeuralBanditModelVAEDiscrete(hparams).to(self.device)
-    else:
-        self.model = NeuralBanditModelVAEGaussian(hparams).to(self.device)
-        self.target_model = NeuralBanditModelVAEGaussian(hparams).to(self.device)
+    self.model = NeuralBanditModelDWS(hparams).to(self.device)
+    self.target_model = NeuralBanditModelDWS(hparams).to(self.device)
     self.target_model.load_state_dict(self.model.state_dict())
     for param in self.target_model.parameters():
         param.requires_grad = False
     self.target_model.eval()
-
+    self.context_dim = self.model.latent_dim
     self.method = hparams.method
     self.batch_data_number = 100
 

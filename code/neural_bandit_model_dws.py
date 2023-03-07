@@ -41,9 +41,9 @@ def init_params_gauss(m):
             m.bias.data.fill_(0)
 
 
-class NeuralBanditModelVAEGaussian(nn.Module):
+class NeuralBanditModelDWS(nn.Module):
     def __init__(self, hparams ):
-        super(NeuralBanditModelVAEGaussian, self).__init__()
+        super(NeuralBanditModelDWS, self).__init__()
         self.state_based = hparams.state_based_value
         self.no_embedding = hparams.no_embedding
         # self.non_linear_func = nn.ReLU
@@ -92,7 +92,7 @@ class NeuralBanditModelVAEGaussian(nn.Module):
         )
 
         # self.value_pred = nn.Linear(hparams.layers_size[-1], 1, bias=False)
-        self.feat_dim = self.clf.latent_dim
+        self.latent_dim = self.clf.latent_dim
         # Initialize parameters correctly
         # self.apply(init_params)
 
