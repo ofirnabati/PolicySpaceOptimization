@@ -114,7 +114,7 @@ class ReprlDataset(torch.utils.data.Dataset):
         #     ]
 
     def __len__(self):
-        return len(self.data)
+        return len(self.dataset)
 
     # def _normalize(self, weights, biases):
     #     wm, ws = self.stats["weights"]["mean"], self.stats["weights"]["std"]
@@ -226,10 +226,10 @@ class ReprlDataset(torch.utils.data.Dataset):
         return new_weights, new_biases
 
     def __getitem__(self, item):
-        exp = self.data[item][0]
+        exp = self.dataset[item][0]
         traj_len = exp.reward.shape[0]
         t = 0  # np.random.randint(traj_len)# if self.state_based else 0
-        weights,biases = self.data[item][1]
+        weights,biases = self.dataset[item][1]
         # t = 0
         # obss = [torch.tensor(str_to_arr(o)) for o in exp.obs[t:t+self.num_unroll+self.stacked_observations-1]]
         # obss = [torch.tensor(o) for o in exp.obs[t:t + self.num_unroll + self.stacked_observations]]
