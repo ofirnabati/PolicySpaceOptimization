@@ -257,25 +257,29 @@ class NeuralLinearPosteriorSampling:
     #   return  torch.randn(self.context_dim).to(self.device), torch.zeros([]), torch.zeros([])
 
     self.model.eval()
-    set_size = decison_set.shape[0]
+    W1, biases1 = decison_set[0]
+    W_batch = [torch.stack([W[i].unsqueeze(-1).float().to(self.device) for W,biases in decison_set]) for i in range(W1)]
+    biases_batch = [torch.stack([biases[i].unsqueeze(-1).float().to(self.device) for W,biases in decison_set]) for i in range(biases1)]
+
+    decison_set_4_network = [W_batch, biases_batch]
     with torch.no_grad():
       # est_vals, decison_set_latent = self.model(obs, decison_set)
       # decison_set_latent = self.model.encode(obs, decison_set)
       if self.discrete_dist:
-          est_vals, decison_set_latent,  _ = self.model.forward_sample(obs, decison_set)
+          est_vals, decison_set_latent,  _ = self.model.forward_sample(obs, decison_set_4_network)
       else:
-        est_vals, decison_set_latent, _, _ = self.model.forward_sample(obs, decison_set)
+        est_vals, decison_set_latent, _, _ = self.model.forward_sample(obs, decison_set_4_network)
       self.est_vals = est_vals
       decison_set_latent = decison_set_latent.to(self.dtype)
-      if ref_point is not None:
-        if self.discrete_dist:
-            # ref_latent = self.model.encode(obs[:1], ref_point.unsqueeze(0))
-            ref_latent = self.model.sample(obs[:1], ref_point.unsqueeze(0))
-        else:
-            # ref_latent, _ = self.model.encode(obs[:1], ref_point.unsqueeze(0))
-            ref_latent = self.model.sample(obs[:1], ref_point.unsqueeze(0))
-        R = decison_set_latent - ref_latent
-        self.R = R.norm(dim=-1).mean().item()
+      # if ref_point is not None:
+      #   if self.discrete_dist:
+      #       # ref_latent = self.model.encode(obs[:1], ref_point.unsqueeze(0))
+      #       ref_latent = self.model.sample(obs[:1], ref_point.unsqueeze(0))
+      #   else:
+      #       # ref_latent, _ = self.model.encode(obs[:1], ref_point.unsqueeze(0))
+      #       ref_latent = self.model.sample(obs[:1], ref_point.unsqueeze(0))
+      #   R = decison_set_latent - ref_latent
+      #   self.R = R.norm(dim=-1).mean().item()
 
 
 
