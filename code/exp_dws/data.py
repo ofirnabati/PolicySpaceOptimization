@@ -249,8 +249,8 @@ class ReprlDataset(torch.utils.data.Dataset):
             weights, biases = self._augment(weights, biases)
 
         # add feature dim
-        weights = tuple([w.unsqueeze(-1) for w in weights])
-        biases = tuple([b.unsqueeze(-1) for b in biases])
+        weights = tuple([w.unsqueeze(-1).float() for w in weights])
+        biases = tuple([b.unsqueeze(-1).float() for b in biases])
 
         # if self.normalize:
         #     weights, biases = self._normalize(weights, biases)
