@@ -521,6 +521,7 @@ class ARSLearner(object):
 
         t1 = time.time()
         # aggregate rollouts to form g_hat, the gradient used to compute SGD step
+        ipdb.set_trace()
         g_hat  = utils.batched_weighted_sum(rollout_rewards[:, 0] - rollout_rewards[:, 1],
                                                   (self.deltas.get(idx)
                                                    for idx in deltas_idx))
