@@ -7,8 +7,8 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Subset
 
-from exp_dws.utils import make_coordinates
-from dwsnet.inr import INR
+# from exp_dws.utils import make_coordinates
+# from dwsnet.inr import INR
 
 
 class Batch(NamedTuple):
@@ -303,83 +303,83 @@ class INRStateDataset(INRDataset):
         return layer_names, layer_params, label, path
 
 
-class INRImageDataset(INRDataset):
-    def __init__(
-        self,
-        path,
-        split="train",
-        normalize=False,
-        augmentation=False,
-        permutation=False,
-        statistics_path="dataset/statistics.pth",
-        translation_scale=0.25,
-        rotation_degree=45,
-        drop_rate=1e-2,
-        noise_scale=1e-1,
-        resize_scale=0.2,
-        pos_scale=0.0,
-        inr_class=INR,
-        inr_kwargs={"n_layers": 3, "in_dim": 2, "up_scale": 16},
-        image_size=(28, 28),
-        class_mapping=None,
-    ):
-        super().__init__(
-            path,
-            split,
-            normalize,
-            augmentation,
-            permutation,
-            statistics_path,
-            translation_scale,
-            rotation_degree,
-            noise_scale,
-            drop_rate=drop_rate,
-            resize_scale=resize_scale,
-            class_mapping=class_mapping,
-            pos_scale=pos_scale,
-        )
-        self.inr = inr_class(**inr_kwargs)
-        self.image_size = image_size
-
-    def __getitem__(self, item):
-        path = self.dataset["path"][item]
-        state_dict = torch.load(path, map_location="cpu")
-
-        weight_names = [k for k in state_dict.keys() if "weight" in k]
-        bias_names = [k for k in state_dict.keys() if "bias" in k]
-
-        weights = tuple(
-            [v.permute(1, 0) for w, v in state_dict.items() if "weight" in w]
-        )
-        biases = tuple([v for w, v in state_dict.items() if "bias" in w])
-
-        label = int(self.dataset["label"][item])
-
-        if self.augmentation:
-            weights, biases = self._augment(weights, biases)
-
-        # add feature dim
-        weights = tuple([w.unsqueeze(-1) for w in weights])
-        biases = tuple([b.unsqueeze(-1) for b in biases])
-
-        if self.normalize:
-            weights, biases = self._normalize(weights, biases)
-
-        if self.permutation:
-            weights, biases = self._permute(weights, biases)
-
-        new_state_dict = {}
-        for i, k in enumerate(weight_names):
-            new_state_dict[k] = weights[i].squeeze(-1).permute(1, 0)
-
-        for i, k in enumerate(bias_names):
-            new_state_dict[k] = biases[i].squeeze(-1)
-
-        self.inr.load_state_dict(new_state_dict)
-        self.inr.eval()
-        input = make_coordinates(self.image_size, 1)
-        with torch.no_grad():
-            image = self.inr(input)
-            image = image.view(*self.image_size, -1)
-            image = image.permute(2, 0, 1)
-        return ImageBatch(image=image, label=label)
+# class INRImageDataset(INRDataset):
+#     def __init__(
+#         self,
+#         path,
+#         split="train",
+#         normalize=False,
+#         augmentation=False,
+#         permutation=False,
+#         statistics_path="dataset/statistics.pth",
+#         translation_scale=0.25,
+#         rotation_degree=45,
+#         drop_rate=1e-2,
+#         noise_scale=1e-1,
+#         resize_scale=0.2,
+#         pos_scale=0.0,
+#         inr_class=INR,
+#         inr_kwargs={"n_layers": 3, "in_dim": 2, "up_scale": 16},
+#         image_size=(28, 28),
+#         class_mapping=None,
+#     ):
+#         super().__init__(
+#             path,
+#             split,
+#             normalize,
+#             augmentation,
+#             permutation,
+#             statistics_path,
+#             translation_scale,
+#             rotation_degree,
+#             noise_scale,
+#             drop_rate=drop_rate,
+#             resize_scale=resize_scale,
+#             class_mapping=class_mapping,
+#             pos_scale=pos_scale,
+#         )
+#         self.inr = inr_class(**inr_kwargs)
+#         self.image_size = image_size
+#
+#     def __getitem__(self, item):
+#         path = self.dataset["path"][item]
+#         state_dict = torch.load(path, map_location="cpu")
+#
+#         weight_names = [k for k in state_dict.keys() if "weight" in k]
+#         bias_names = [k for k in state_dict.keys() if "bias" in k]
+#
+#         weights = tuple(
+#             [v.permute(1, 0) for w, v in state_dict.items() if "weight" in w]
+#         )
+#         biases = tuple([v for w, v in state_dict.items() if "bias" in w])
+#
+#         label = int(self.dataset["label"][item])
+#
+#         if self.augmentation:
+#             weights, biases = self._augment(weights, biases)
+#
+#         # add feature dim
+#         weights = tuple([w.unsqueeze(-1) for w in weights])
+#         biases = tuple([b.unsqueeze(-1) for b in biases])
+#
+#         if self.normalize:
+#             weights, biases = self._normalize(weights, biases)
+#
+#         if self.permutation:
+#             weights, biases = self._permute(weights, biases)
+#
+#         new_state_dict = {}
+#         for i, k in enumerate(weight_names):
+#             new_state_dict[k] = weights[i].squeeze(-1).permute(1, 0)
+#
+#         for i, k in enumerate(bias_names):
+#             new_state_dict[k] = biases[i].squeeze(-1)
+#
+#         self.inr.load_state_dict(new_state_dict)
+#         self.inr.eval()
+#         input = make_coordinates(self.image_size, 1)
+#         with torch.no_grad():
+#             image = self.inr(input)
+#             image = image.view(*self.image_size, -1)
+#             image = image.permute(2, 0, 1)
+#         return ImageBatch(image=image, label=label)
