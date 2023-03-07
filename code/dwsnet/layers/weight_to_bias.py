@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch.nn import ModuleDict
 
-from nn.layers.base import BaseLayer, GeneralSetLayer
+from dwsnet.layers.base import BaseLayer, GeneralSetLayer
 
 
 class SameLayer(BaseLayer):

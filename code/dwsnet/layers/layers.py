@@ -4,11 +4,11 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nn.layers.base import BaseLayer, GeneralSetLayer
-from nn.layers.bias_to_bias import BiasToBiasBlock
-from nn.layers.bias_to_weight import BiasToWeightBlock
-from nn.layers.weight_to_bias import WeightToBiasBlock
-from nn.layers.weight_to_weight import WeightToWeightBlock
+from dwsnet.layers.base import BaseLayer, GeneralSetLayer
+from dwsnet.layers.bias_to_bias import BiasToBiasBlock
+from dwsnet.layers.bias_to_weight import BiasToWeightBlock
+from dwsnet.layers.weight_to_bias import WeightToBiasBlock
+from dwsnet.layers.weight_to_weight import WeightToWeightBlock
 
 
 class BN(nn.Module):
