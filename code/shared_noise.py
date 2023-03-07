@@ -53,9 +53,9 @@ class SharedNoiseTableSet(object):
         self.W , self.bias = weights
         self.dim = 0
         for w in self.W:
-            self.dim += torch.prod(w.shape)
+            self.dim += w.numel()
         for b in self.bias:
-            self.dim += torch.prod(b.shape)
+            self.dim += b.numel()
 
         assert self.noise.dtype == np.float64
 
@@ -64,11 +64,11 @@ class SharedNoiseTableSet(object):
         W_noise = []
         bias_noise = []
         for w in self.W:
-            dim = torch.prod(w.shape)
+            dim = w.numel()
             W_noise.append(self.noise[idx:dim].reshape(*w.shape))
             idx += dim
         for b in self.bias:
-            dim = torch.prod(b.shape)
+            dim = b.numel()
             bias_noise.append(self.noise[idx:dim].reshape(*b.shape))
             idx += dim
 
