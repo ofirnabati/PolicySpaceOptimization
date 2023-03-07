@@ -252,8 +252,8 @@ class ReprlDataset(torch.utils.data.Dataset):
         weights = tuple([w.unsqueeze(-1) for w in weights])
         biases = tuple([b.unsqueeze(-1) for b in biases])
 
-        if self.normalize:
-            weights, biases = self._normalize(weights, biases)
+        # if self.normalize:
+        #     weights, biases = self._normalize(weights, biases)
 
         if self.permutation:
             weights, biases = self._permute(weights, biases)
