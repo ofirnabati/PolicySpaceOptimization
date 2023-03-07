@@ -256,7 +256,6 @@ class NeuralLinearPosteriorSampling:
     # if self.t < self.hparams.initial_pulls:
     #   return  torch.randn(self.context_dim).to(self.device), torch.zeros([]), torch.zeros([])
 
-    ipdb.set_trace()
     self.model.eval()
     W1, biases1 = decison_set[0]
     W_batch = [torch.stack([W[i].unsqueeze(-1).float().to(self.device) for W,biases in decison_set]) for i in range(len(W1))]
