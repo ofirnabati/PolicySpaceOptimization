@@ -432,8 +432,8 @@ class NeuralLinearPosteriorSampling:
                   # contexts =  context1[idx:idx+1].to(self.device)
                   # contexts = context.unsqueeze(0).to(self.device)
                   weights, biases = context
-                  weights = tuple([w.unsqueeze(-1).unsqueeze(0).to(self.device) for w in weights])
-                  biases = tuple([b.unsqueeze(-1).unsqueeze(0).to(self.device) for b in biases])
+                  weights = tuple([w.unsqueeze(-1).unsqueeze(0).float().to(self.device) for w in weights])
+                  biases = tuple([b.unsqueeze(-1).unsqueeze(0).float().to(self.device) for b in biases])
                   contexts= [weights, biases]
                   first_states = [] #states[idx:idx+1].float().to(self.device)
                   # values  =returns[idx:idx+1].to(self.device)
@@ -461,8 +461,8 @@ class NeuralLinearPosteriorSampling:
             # states = torch.tensor(np.array(exp.obs)).to(self.device).float()
             states = exp.obs
             weights, biases = context
-            weights = tuple([w.unsqueeze(-1).unsqueeze(0).to(self.device) for w in weights])
-            biases = tuple([b.unsqueeze(-1).unsqueeze(0).to(self.device) for b in biases])
+            weights = tuple([w.unsqueeze(-1).unsqueeze(0).float().to(self.device) for w in weights])
+            biases = tuple([b.unsqueeze(-1).unsqueeze(0).float().to(self.device) for b in biases])
             contexts = [weights, biases]
             # context = torch.tensor(context).float().unsqueeze(0).to(self.device)
 
