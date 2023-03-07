@@ -863,9 +863,9 @@ def run_ars(args):
     args.obs_dim = ob_dim
 
     wandb.init(project="PolicySpaceOptimization_new", entity="ofirnabati", config=args.__dict__)
-    wandb.run.name = args.env_name + '_' + 'neural_es_vae'
+    wandb.run.name = args.env_name + '_' + 'neural_es_vae_dws'
     if args.policy_type == 'nn':
-        wandb.run.name = wandb.run.name + '_nn_dws'
+        wandb.run.name = wandb.run.name + '_nn'
     wandb.run.save()
 
     storage = Storage(config=args)
