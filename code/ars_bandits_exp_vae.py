@@ -413,7 +413,7 @@ class ARSLearner(object):
                     exp_pos.step   = result['step_id_arr'][j][0]
                     if self.params['filter'] == 'MeanStdFilter':
                         w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                        update_par = np.concatenate([[noisy_weights_plus, noisy_bias_plus] , w[1], w[2]])
+                        update_par = [[noisy_weights_plus, noisy_bias_plus] , w[2], w[3]]
                     else:
                         update_par = [noisy_weights_plus, noisy_bias_plus]
                     loss_pos = self.bandit_algo.update(exp_pos, update_par)
@@ -430,7 +430,7 @@ class ARSLearner(object):
                     exp_neg.step   = result['step_id_arr'][j][1]
                     if self.params['filter'] == 'MeanStdFilter':
                         w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                        update_par = np.concatenate([[noisy_weights_neg, noisy_bias_neg], w[1], w[2]])
+                        update_par = [[noisy_weights_neg, noisy_bias_neg], w[2], w[3]]
                     else:
                         update_par = [noisy_weights_neg, noisy_bias_neg]
                     loss_neg = self.bandit_algo.update(exp_neg, update_par)
@@ -462,7 +462,7 @@ class ARSLearner(object):
                 exp_pos.step = result['step_id_arr'][0][0]
                 if self.params['filter'] == 'MeanStdFilter':
                     w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                    update_par = np.concatenate([[noisy_weights_plus, noisy_bias_plus] , w[1], w[2]])
+                    update_par = [[noisy_weights_plus, noisy_bias_plus] , w[2], w[3]]
                 else:
                     update_par = [noisy_weights_plus, noisy_bias_plus]
                 loss_pos = self.bandit_algo.update(exp_pos, update_par)
@@ -478,7 +478,7 @@ class ARSLearner(object):
                 exp_neg.step = result['step_id_arr'][0][1]
                 if self.params['filter'] == 'MeanStdFilter':
                     w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                    update_par = np.concatenate([[noisy_weights_neg, noisy_bias_neg] , w[1], w[2]])
+                    update_par = [[noisy_weights_neg, noisy_bias_neg] , w[2], w[3]]
                 else:
                     update_par = [noisy_weights_neg, noisy_bias_neg]
                 loss_neg = self.bandit_algo.update(exp_neg, update_par)
@@ -581,8 +581,8 @@ class ARSLearner(object):
                         first_state = first_state.float()
                         if self.params['filter'] == 'MeanStdFilter':
                             w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                            ref_point = np.concatenate([self.w_policy.reshape(-1), w[1], w[2]])
-                            ref_point = torch.tensor(ref_point, device=self.device, dtype=torch.float)
+                            ref_point = [self.w_policy.reshape(-1), w[1], w[2]]
+                            # ref_point = torch.tensor(ref_point, device=self.device, dtype=torch.float)
                         else:
                            ref_point =  self.w_policy #torch.tensor(self.w_policy.reshape(-1), device=self.device, dtype=torch.float)
 
@@ -845,7 +845,9 @@ def run_ars(args):
 
     if params['filter'] == 'MeanStdFilter':
         w = policy.get_weights_plus_stats()
-        context_dim = np.concatenate([w[0].reshape(-1), w[1], w[2]]).size
+        W = w[0]
+        bias = w[1]
+        # context_dim = np.concatenate([w[0].reshape(-1), w[1], w[2]]).size
     else:
         # context_dim = policy.get_weights().size
         W,bias = policy.get_weights()

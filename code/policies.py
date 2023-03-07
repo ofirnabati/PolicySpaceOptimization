@@ -183,8 +183,8 @@ class DiscretePolicy(BasicModel):
 
     def get_weights_plus_stats(self):
         mu, std = self.observation_filter.get_stats()
-        weights = self.get_weights()
-        aux = np.asarray([weights, mu, std])
+        weights, biases = self.get_weights()
+        aux = [weights, biases, mu, std]
         return aux
 
 class StableBaselinePolicy(BasicModel):
