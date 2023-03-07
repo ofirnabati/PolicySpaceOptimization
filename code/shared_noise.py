@@ -56,7 +56,7 @@ class SharedNoiseTableSet(object):
             self.dim += w.numel()
         for b in self.bias:
             self.dim += b.numel()
-        print(self.dim)
+
         assert self.noise.dtype == np.float64
 
     def get(self, i):
@@ -65,11 +65,11 @@ class SharedNoiseTableSet(object):
         bias_noise = []
         for w in self.W:
             dim = w.numel()
-            W_noise.append(self.noise[idx:dim].reshape(*w.shape))
+            W_noise.append(self.noise[idx:idx+dim].reshape(*w.shape))
             idx += dim
         for b in self.bias:
             dim = b.numel()
-            bias_noise.append(self.noise[idx:dim].reshape(*b.shape))
+            bias_noise.append(self.noise[idx:idx+dim].reshape(*b.shape))
             idx += dim
 
         return [W_noise, bias_noise]
