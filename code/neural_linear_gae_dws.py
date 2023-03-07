@@ -22,21 +22,35 @@ class NeuralLinearPosteriorSampling:
     self.no_embedding = self.hparams.no_embedding
     self.discrete_dist = self.hparams.discrete_dist
 
-    if self.no_embedding:
-        self.latent_dim = self.hparams.context_dim
-    else:
-        if self.discrete_dist:
-            self.category_size = self.hparams.category_size
-            self.class_size = self.hparams.class_size
-            self.latent_dim = self.category_size * self.class_size
-        else:
-            self.latent_dim = self.hparams.layers_size[-1]
+
+    self._lambda_prior = self.hparams.lambda_prior
+    self.device = device
+    self.model = NeuralBanditModelDWS(hparams).to(self.device)
+    self.target_model = NeuralBanditModelDWS(hparams).to(self.device)
+    self.target_model.load_state_dict(self.model.state_dict())
+    for param in self.target_model.parameters():
+        param.requires_grad = False
+    self.target_model.eval()
+    self.latent_dim = self.model.latent_dim
+
+
+
+    # if self.no_embedding:
+    #     self.latent_dim = self.hparams.context_dim
+    # else:
+    #     if self.discrete_dist:
+    #         self.category_size = self.hparams.category_size
+    #         self.class_size = self.hparams.class_size
+    #         self.latent_dim = self.category_size * self.class_size
+    #     else:
+    #         self.latent_dim = self.hparams.layers_size[-1]
 
     self.param_dim=self.latent_dim
 
     # Gaussian prior for each beta_i
-    self._lambda_prior = self.hparams.lambda_prior
-    self.device = device
+
+
+
     self.fragments = 1
     self.kld_coeff = self.hparams.kld_coeff
     self.decoder_coeff = self.hparams.dec_coeff
@@ -69,13 +83,7 @@ class NeuralLinearPosteriorSampling:
     self.training_steps = 0
 
     self.data_h = storage
-    self.model = NeuralBanditModelDWS(hparams).to(self.device)
-    self.target_model = NeuralBanditModelDWS(hparams).to(self.device)
-    self.target_model.load_state_dict(self.model.state_dict())
-    for param in self.target_model.parameters():
-        param.requires_grad = False
-    self.target_model.eval()
-    self.context_dim = self.model.latent_dim
+
     self.method = hparams.method
     self.batch_data_number = 100
 
