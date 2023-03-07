@@ -56,7 +56,7 @@ class SharedNoiseTableSet(object):
             self.dim += w.numel()
         for b in self.bias:
             self.dim += b.numel()
-
+        print(self.dim)
         assert self.noise.dtype == np.float64
 
     def get(self, i):
