@@ -28,7 +28,7 @@ def itergroups(items, group_size):
 
 
 
-def batched_weighted_sum(weights, vecs, batch_size):
+def batched_weighted_sum(weights, vecs):#, batch_size):
     W1, b1 = vecs[0]
     N = len(vecs)
     W = [torch.zeros_like(w) for w in W1]

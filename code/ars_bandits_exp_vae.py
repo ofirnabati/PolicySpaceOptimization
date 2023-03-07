@@ -523,7 +523,7 @@ class ARSLearner(object):
         # aggregate rollouts to form g_hat, the gradient used to compute SGD step
         g_hat  = utils.batched_weighted_sum(rollout_rewards[:, 0] - rollout_rewards[:, 1],
                                                   (self.deltas.get(idx)
-                                                   for idx in deltas_idx)),
+                                                   for idx in deltas_idx))
                                                   # batch_size=500)
         # g_hat /= deltas_idx.size
         # self.w_policy -= self.optimizer._compute_step(g_hat).reshape(self.w_policy.shape)
