@@ -49,7 +49,7 @@ class SharedNoiseTableSet(object):
     def __init__(self, noise, weights, seed = 11):
 
         self.rg = np.random.RandomState(seed)
-        self.noise = noise
+        self.noise = torch.tensor(noise)
         self.W , self.bias = weights
         self.dim = 0
         for w in self.W:
