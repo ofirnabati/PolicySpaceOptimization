@@ -734,8 +734,8 @@ class ARSLearner(object):
 
 
 
-                w = ray.get(self.workers[0].get_weights_plus_stats.remote())
-                np.savez(self.logdir + "/lin_policy_plus", w)
+                # w = ray.get(self.workers[0].get_weights_plus_stats.remote())
+                # np.savez(self.logdir + "/lin_policy_plus", w)
                 
                 print(sorted(self.params.items()))
                 # logz.log_tabular("Time", time.time() - start)
