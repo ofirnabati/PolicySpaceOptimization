@@ -262,45 +262,45 @@ class ReprlDataset(torch.utils.data.Dataset):
         return Batch(weights=weights, biases=biases, ret=ret)
 
 
-class INRStateDataset(INRDataset):
-    def __init__(
-        self,
-        path,
-        split="train",
-        normalize=False,
-        augmentation=False,
-        permutation=False,
-        statistics_path="dataset/statistics.pth",
-        translation_scale=0.25,
-        rotation_degree=45,
-        noise_scale=1e-1,
-        drop_rate=1e-2,
-        resize_scale=0.2,
-        pos_scale=0.0,
-        class_mapping=None,
-    ):
-        super().__init__(
-            path,
-            split,
-            normalize,
-            augmentation,
-            permutation,
-            statistics_path,
-            translation_scale,
-            rotation_degree,
-            noise_scale,
-            drop_rate=drop_rate,
-            resize_scale=resize_scale,
-            class_mapping=class_mapping,
-            pos_scale=pos_scale,
-        )
-
-    def __getitem__(self, item):
-        path = self.dataset["path"][item]
-        state_dict = torch.load(path, map_location=lambda storage, loc: storage)
-        label = int(self.dataset["label"][item])
-        layer_names, layer_params = list(state_dict.keys()), list(state_dict.values())
-        return layer_names, layer_params, label, path
+# class INRStateDataset(INRDataset):
+#     def __init__(
+#         self,
+#         path,
+#         split="train",
+#         normalize=False,
+#         augmentation=False,
+#         permutation=False,
+#         statistics_path="dataset/statistics.pth",
+#         translation_scale=0.25,
+#         rotation_degree=45,
+#         noise_scale=1e-1,
+#         drop_rate=1e-2,
+#         resize_scale=0.2,
+#         pos_scale=0.0,
+#         class_mapping=None,
+#     ):
+#         super().__init__(
+#             path,
+#             split,
+#             normalize,
+#             augmentation,
+#             permutation,
+#             statistics_path,
+#             translation_scale,
+#             rotation_degree,
+#             noise_scale,
+#             drop_rate=drop_rate,
+#             resize_scale=resize_scale,
+#             class_mapping=class_mapping,
+#             pos_scale=pos_scale,
+#         )
+#
+#     def __getitem__(self, item):
+#         path = self.dataset["path"][item]
+#         state_dict = torch.load(path, map_location=lambda storage, loc: storage)
+#         label = int(self.dataset["label"][item])
+#         layer_names, layer_params = list(state_dict.keys()), list(state_dict.values())
+#         return layer_names, layer_params, label, path
 
 
 # class INRImageDataset(INRDataset):
