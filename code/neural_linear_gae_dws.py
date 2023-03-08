@@ -21,7 +21,8 @@ class NeuralLinearPosteriorSampling:
     # self.latent_dim = self.hparams.context_dim + self.hparams.obs_dim
     self.no_embedding = self.hparams.no_embedding
     self.augmentation = self.hparams.augmentation
-    self.permutation = self.hparams.permutation
+    self.permutation = self.hparams.permutatpon
+    self.discrete_dist = self.hparams.discrete_dist
 
 
     self._lambda_prior = self.hparams.lambda_prior
