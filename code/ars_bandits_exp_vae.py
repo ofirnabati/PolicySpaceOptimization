@@ -308,6 +308,7 @@ class ARSLearner(object):
         self.device = device
 
         self.bandit_algo = bandit_algo
+        print('latent dim:', bandit_algo.latent_dim)
         self.storage = storage
         self.average_first_state = params['average_first_state']
         self.horizon = params['horizon']
@@ -343,7 +344,6 @@ class ARSLearner(object):
         else:
             raise NotImplementedError
 
-        ipdb.set_trace()
         self.w_policy = self.policy.get_weights()
         self.deltas = SharedNoiseTableSet(ray.get(deltas_id), self.w_policy, seed=seed + 3)
         self.policy_history_set = [self.w_policy for _ in range(params['policy_history_set_size'])]
@@ -969,7 +969,7 @@ if __name__ == '__main__':
 
 
     #DWS
-    parser.add_argument("--dim_hidden", type=int, default=32)
+    parser.add_argument("--dim_hidden", type=int, default=256)
     parser.add_argument("--n_hidden", type=int, default=4)
     parser.add_argument("--reduction", type=str, default="max", choices=["mean", "sum", "max"])
     parser.add_argument("--n_fc_layers", type=int, default=1)
