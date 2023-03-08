@@ -244,6 +244,8 @@ class ReprlDataset(torch.utils.data.Dataset):
         #     masks).float(), torch.tensor(steps).float()
         # obss = obss.float()  # / 255.0 #uint8 --> float32
 
+        weights = tuple([w.float() for w in weights])
+        biases = tuple([b.float() for b in biases])
 
         if self.augmentation:
             weights, biases = self._augment(weights, biases)
