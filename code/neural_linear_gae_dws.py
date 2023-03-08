@@ -20,7 +20,8 @@ class NeuralLinearPosteriorSampling:
     self.storage = storage
     # self.latent_dim = self.hparams.context_dim + self.hparams.obs_dim
     self.no_embedding = self.hparams.no_embedding
-    self.discrete_dist = self.hparams.discrete_dist
+    self.augmentation = self.hparams.augmentation
+    self.permutation = self.hparams.permutation
 
 
     self._lambda_prior = self.hparams.lambda_prior
@@ -529,7 +530,7 @@ class NeuralLinearPosteriorSampling:
 
   def train(self, data):
         self.model.train()
-        dataset = ReprlDataset(data, self.num_unroll_steps, self.stacked_observations, self.horizon, self.state_based_value, augmentation=False, permutation=False)
+        dataset = ReprlDataset(data, self.num_unroll_steps, self.stacked_observations, self.horizon, self.state_based_value, augmentation=self.augmentation, permutation=self.permutation)
 
         smplr = torch.utils.data.RandomSampler(dataset,
                                                replacement=True,

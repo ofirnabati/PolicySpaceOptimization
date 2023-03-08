@@ -977,6 +977,8 @@ if __name__ == '__main__':
     parser.add_argument("--n_out_fc", type=int, default=1)
     parser.add_argument("--do-rate", type=float, default=0.0, help="dropout rate")
     parser.add_argument("--add_bn", type=str2bool, default=True)
+    parser.add_argument("--permutation", type=str2bool, default=False)
+    parser.add_argument("--augmentation", type=str2bool, default=False)
     parser.add_argument("--n-heads", type=int, default=8)
 
 
