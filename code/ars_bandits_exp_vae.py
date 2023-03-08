@@ -343,6 +343,7 @@ class ARSLearner(object):
         else:
             raise NotImplementedError
 
+        ipdb.set_trace()
         self.w_policy = self.policy.get_weights()
         self.deltas = SharedNoiseTableSet(ray.get(deltas_id), self.w_policy, seed=seed + 3)
         self.policy_history_set = [self.w_policy for _ in range(params['policy_history_set_size'])]
@@ -863,7 +864,8 @@ def run_ars(args):
     args.obs_dim = ob_dim
 
     wandb.init(project="PolicySpaceOptimization_new", entity="ofirnabati", config=args.__dict__)
-    wandb.run.name = args.env_name + '_' + 'neural_es_vae_dws'
+    # wandb.run.name = args.env_name + '_' + 'neural_es_vae_dws'
+    wandb.run.name = args.env_name + '_' + 'neural_es_dws'
     if args.policy_type == 'nn':
         wandb.run.name = wandb.run.name + '_nn'
     wandb.run.save()
