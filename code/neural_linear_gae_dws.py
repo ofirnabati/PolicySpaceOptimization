@@ -115,7 +115,9 @@ class NeuralLinearPosteriorSampling:
 
 
     if self.optimizer_name == 'Adam':
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-8)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=5e-4)
+    elif self.optimizer_name == 'AdamW':
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.lr, amsgrad=True, weight_decay=5e-4)
     elif self.optimizer_name == 'RMSprop':
         self.optimizer = torch.optim.RMSprop(self.model.parameters(), lr=self.lr, weight_decay=1e-8)
     else:

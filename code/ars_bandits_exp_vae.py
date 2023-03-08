@@ -951,7 +951,7 @@ if __name__ == '__main__':
     parser.add_argument("--training_freq_network", type=int, default=50)
     parser.add_argument("--training_iter", type=int, default=128)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--initial_lr", type=float, default=3e-4)
+    parser.add_argument("--initial_lr", type=float, default=5e-3)
     parser.add_argument("--max_grad_norm", type=float, default=0.5)
     parser.add_argument("--kld_coeff", type=float, default=0.1)
     parser.add_argument("--dec_coeff", type=float, default=0.1)
@@ -969,7 +969,7 @@ if __name__ == '__main__':
 
 
     #DWS
-    parser.add_argument("--dim_hidden", type=int, default=256)
+    parser.add_argument("--dim_hidden", type=int, default=32)
     parser.add_argument("--n_hidden", type=int, default=4)
     parser.add_argument("--reduction", type=str, default="max", choices=["mean", "sum", "max"])
     parser.add_argument("--n_fc_layers", type=int, default=1)
