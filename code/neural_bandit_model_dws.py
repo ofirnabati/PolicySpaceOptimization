@@ -98,9 +98,9 @@ class NeuralBanditModelDWS(nn.Module):
         # self.latent_dim = self.clf.latent_dim
         self.latent_dim = 0
         for size in hparams.weight_shapes:
-            self.latent_dim += size.numel() * hparams.dim_hidden
+            self.latent_dim += size.numel() * self.output_features
         for size in hparams.bias_shapes:
-            self.latent_dim += size.numel() * hparams.dim_hidden
+            self.latent_dim += size.numel() * self.output_features
 
         # Initialize parameters correctly
         # self.apply(init_params)
