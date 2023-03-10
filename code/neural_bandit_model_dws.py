@@ -46,6 +46,7 @@ class NeuralBanditModelDWS(nn.Module):
         super(NeuralBanditModelDWS, self).__init__()
         self.state_based = hparams.state_based_value
         self.no_embedding = hparams.no_embedding
+        self.output_features = 1
         self.non_linear_func = nn.ReLU
         # self.non_linear_func = nn.ReLU
         if self.state_based:
@@ -58,6 +59,7 @@ class NeuralBanditModelDWS(nn.Module):
             bias_shapes=hparams.bias_shapes,
             input_features=1,
             hidden_dim=hparams.dim_hidden,
+            output_features= self.output_features,
             n_hidden=hparams.n_hidden,
             reduction=hparams.reduction,
             n_fc_layers=hparams.n_fc_layers,
@@ -85,7 +87,7 @@ class NeuralBanditModelDWS(nn.Module):
         self.clf = InvariantLayer(
             weight_shapes=hparams.weight_shapes,
             bias_shapes=hparams.bias_shapes,
-            in_features=hparams.dim_hidden,
+            in_features=self.output_features,
             out_features=1,
             reduction= hparams.reduction,
             n_fc_layers= hparams.n_out_fc,
@@ -93,8 +95,13 @@ class NeuralBanditModelDWS(nn.Module):
         )
 
         # self.value_pred = nn.Linear(hparams.layers_size[-1], 1, bias=False)
-        ipdb.set_trace()
-        self.latent_dim = self.clf.latent_dim
+        # self.latent_dim = self.clf.latent_dim
+        self.latent_dim = 0
+        for size in hparams.weight_shapes:
+            self.latent_dim += size.numel() * hparams.dim_hidden
+        for size in hparams.bias_shapes:
+            self.latent_dim += size.numel() * hparams.dim_hidden
+
         # Initialize parameters correctly
         # self.apply(init_params)
 
