@@ -18,7 +18,7 @@
 The network accepts different type of optimizers that could lead to different
 approximations of the posterior distribution or simply to point estimates.
 """
-
+import ipdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -93,6 +93,7 @@ class NeuralBanditModelDWS(nn.Module):
         )
 
         # self.value_pred = nn.Linear(hparams.layers_size[-1], 1, bias=False)
+        ipdb.set_trace()
         self.latent_dim = self.clf.latent_dim
         # Initialize parameters correctly
         # self.apply(init_params)
@@ -120,18 +121,18 @@ class NeuralBanditModelDWS(nn.Module):
             # mean_value = self.value_pred(mu)
             # mean_value = google_nonlinear(mean_value)
             x = self.policy_embedder(policy)
-            x = self.relu(x)
+            # x = self.relu(x)
             mean_value, mu = self.clf(x)
-            return mean_value, mu
+            return mean_value, self.concat_weights(x)
 
     def forward_sample(self, state, policy):
         if self.no_embedding:
             return torch.zeros_like(policy[:,0]), policy, None, None
         else:
             x = self.policy_embedder(policy)
-            x = self.relu(x)
+            # x = self.relu(x)
             mean_value, mu = self.clf(x)
-            return mean_value, mu, None, None
+            return mean_value, self.concat_weights(x), None, None
 
     def set_weights(self, weights):
         self.load_state_dict(weights)
@@ -144,21 +145,28 @@ class NeuralBanditModelDWS(nn.Module):
             return policy, None
         else:
             x = self.policy_embedder(policy)
-            x = self.relu(x)
-            mu = self.clf.extract_latent(x)
-            return mu, None
+            # x = self.relu(x)
+            # mu = self.clf.extract_latent(x)
+            return self.concat_weights(x), None
 
     # def decode(self, z):
     #     return self.decoder(z)
+
+    def concat_weights(self,x):
+        weights, biases = x
+        W = torch.concat([w.flatten(start_dim=1) for w in weights], dim=-1)
+        B = torch.concat([b.flatten(start_dim=1) for b in biases], dim=-1)
+        return torch.concat([W,B],dim=-1)
 
     def sample(self, state, policy):
         if self.no_embedding:
             return policy
         else:
             x = self.policy_embedder(policy)
-            x = self.relu(x)
-            mu = self.clf.extract_latent(x)
-            return mu
+            # x = self.relu(x)
+            # mu = self.clf.extract_latent(x)
+
+            return self.concat_weights(x)
 
 
     def get_last_layer_weights(self):
