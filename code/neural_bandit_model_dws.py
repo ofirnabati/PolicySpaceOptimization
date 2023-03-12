@@ -95,12 +95,12 @@ class NeuralBanditModelDWS(nn.Module):
         )
 
         # self.value_pred = nn.Linear(hparams.layers_size[-1], 1, bias=False)
-        # self.latent_dim = self.clf.latent_dim
-        self.latent_dim = 0
-        for size in hparams.weight_shapes:
-            self.latent_dim += size.numel() * self.output_features
-        for size in hparams.bias_shapes:
-            self.latent_dim += size.numel() * self.output_features
+        self.latent_dim = self.clf.latent_dim
+        # self.latent_dim = 0
+        # for size in hparams.weight_shapes:
+        #     self.latent_dim += size.numel() * self.output_features
+        # for size in hparams.bias_shapes:
+        #     self.latent_dim += size.numel() * self.output_features
 
         # Initialize parameters correctly
         # self.apply(init_params)
@@ -130,7 +130,7 @@ class NeuralBanditModelDWS(nn.Module):
             x = self.policy_embedder(policy)
             # x = self.relu(x)
             mean_value, mu = self.clf(x)
-            return mean_value, self.concat_weights(x)
+            return mean_value, mu
 
     def forward_sample(self, state, policy):
         if self.no_embedding:
@@ -139,7 +139,7 @@ class NeuralBanditModelDWS(nn.Module):
             x = self.policy_embedder(policy)
             # x = self.relu(x)
             mean_value, mu = self.clf(x)
-            return mean_value, self.concat_weights(x), None, None
+            return mean_value, mu, None, None
 
     def set_weights(self, weights):
         self.load_state_dict(weights)
@@ -153,8 +153,8 @@ class NeuralBanditModelDWS(nn.Module):
         else:
             x = self.policy_embedder(policy)
             # x = self.relu(x)
-            # mu = self.clf.extract_latent(x)
-            return self.concat_weights(x), None
+            mu = self.clf.extract_latent(x)
+            return mu, None
 
     # def decode(self, z):
     #     return self.decoder(z)
@@ -171,9 +171,9 @@ class NeuralBanditModelDWS(nn.Module):
         else:
             x = self.policy_embedder(policy)
             # x = self.relu(x)
-            # mu = self.clf.extract_latent(x)
+            mu = self.clf.extract_latent(x)
 
-            return self.concat_weights(x)
+            return mu
 
 
     def get_last_layer_weights(self):

@@ -345,7 +345,8 @@ class InvariantLayer(BaseLayer):
         self.layer = self._get_mlp(
             in_features=self.latent_dim,
             out_features=out_features,
-            bias=bias,
+            # bias=bias,
+            bias=False,
         )
 
     def extract_latent(self, x: Tuple[Tuple[torch.tensor], Tuple[torch.tensor]]):
