@@ -970,10 +970,11 @@ if __name__ == '__main__':
 
     #DWS
     parser.add_argument("--dim_hidden", type=int, default=32)
+    parser.add_argument("--output_features", type=int, default=64)
     parser.add_argument("--n_hidden", type=int, default=4)
     parser.add_argument("--reduction", type=str, default="max", choices=["mean", "sum", "max"])
     parser.add_argument("--n_fc_layers", type=int, default=1)
-    parser.add_argument("--set_layer", type=str, default='sab')
+    parser.add_argument("--set_layer", type=str, default='sab', choices=["ds", "sab"])
     parser.add_argument("--n_out_fc", type=int, default=1)
     parser.add_argument("--do-rate", type=float, default=0.0, help="dropout rate")
     parser.add_argument("--add_bn", type=str2bool, default=True)
