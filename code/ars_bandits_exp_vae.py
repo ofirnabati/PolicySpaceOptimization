@@ -996,7 +996,7 @@ if __name__ == '__main__':
         args.training_freq_network = 10000000000
     else:
         args.training_freq_network = args.n_directions * 2 * 5
-    args.training_iter = args.n_directions * 2 * 30
+    args.training_iter = args.n_directions * 2 * 10
 
     args.target_model_update = args.training_iter
     args.delta_bandit_std = args.delta_std

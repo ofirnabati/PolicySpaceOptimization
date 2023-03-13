@@ -104,6 +104,19 @@ class NeuralBanditModelDWS(nn.Module):
 
         # Initialize parameters correctly
         # self.apply(init_params)
+        # self.decoder = DWSModel(
+        #     weight_shapes=hparams.weight_shapes,
+        #     bias_shapes=hparams.bias_shapes,
+        #     input_features=self.output_features,
+        #     hidden_dim=hparams.dim_hidden,
+        #     output_features= 1,
+        #     n_hidden=hparams.n_hidden,
+        #     reduction=hparams.reduction,
+        #     n_fc_layers=hparams.n_fc_layers,
+        #     set_layer=hparams.set_layer,
+        #     dropout_rate=hparams.do_rate,
+        #     bn=hparams.add_bn)
+
 
         # decoder_layers = []
         # for j in range(len(hparams.layers_size),1,-1):
